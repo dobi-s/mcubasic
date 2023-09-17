@@ -5,6 +5,6 @@ ELSE
   PRINT "xyz"
 ENDIF
 REM  ( 1    +   0xBEEF  )   MOD   "2 * -3"    OR    4 <> 7    THEN
-DO WHILE 1 > 2
-  PRINT "Hallo"
+DO UNTIL 1 > 2
 LOOP
+  PRINT "Hallo"

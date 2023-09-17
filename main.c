@@ -173,7 +173,7 @@ static int keycmp(const char* s, const char* kw)
     return 0;
 
   int l = 0;
-  while (*kw && (*(s++) == *(kw++))) l++;
+  while (*kw && (*s == *kw)) { s++; kw++; l++; }
   return (*kw == '\0' && (*s == ' ' || *s == '\n' || *s == '\0')) ? l : 0;
 }
 
@@ -191,7 +191,7 @@ static int strcon(const char** s, const char* str)
 {
   const char* ss = *s;
   int l = 0;
-  while (*str && (*(ss++) == *(str++))) l++;
+  while (*str && (*ss == *str)) {ss++; str++; l++;}
   if (*str)
     return 0;
   if (l > 0)
@@ -361,6 +361,32 @@ static int parseStmt(const char** s)
     return makeAst(AST_CMD_IF, a, b, c, -1);
   }
 
+  if (keycon(s, "DO"))
+  {
+    int a; // statements
+    int b = -1; // do while condition
+    int c = -1; // loop while condition
+    if (keycon(s, "WHILE"))
+      CHECK(b = parser[0](s, 0));
+    else if (keycon(s, "UNTIL"))
+    {
+      CHECK(b = parser[0](s, 0));
+      b = makeAst(AST_OP_NOT, b, -1, -1, -1);
+    }
+    if (!strcon(s, "\n")) return -1;
+    CHECK(a = parseBlock(s));
+    if (!keycon(s, "LOOP")) return -1;
+    if (keycon(s, "WHILE"))
+      CHECK(c = parser[0](s, 0));
+    else if (keycon(s, "UNTIL"))
+    {
+      CHECK(b = parser[0](s, 0));
+      b = makeAst(AST_OP_NOT, b, -1, -1, -1);
+    }
+    if (!strcon(s, "\n")) return -1;
+    return makeAst(AST_CMD_DO, a, b, c, -1);
+  }
+
   if (keycon(s, "REM"))
   {
     while (**s != '\n') *s = readChars(1, true);
@@ -399,6 +425,51 @@ static int parseBlock(const char** s)
 // Debug
 //=============================================================================
 #define INDENT()      for (int n = 0; n < indent; n++) printf("  ");
+
+//-----------------------------------------------------------------------------
+static const char* astOp(eAstOp op)
+{
+  switch (op)
+  {
+    case AST_STMTS:       return "STM";
+    case AST_CMD_PRINT:   return "PRN";
+    case AST_CMD_IF:      return "IF ";
+    case AST_CMD_DO:      return "DO ";
+    case AST_CMD_FOR:     return "FOR";
+    case AST_CMD_REM:     return "REM";
+    case AST_CMD_NOP:     return "NOP";
+    case AST_OP_NEQ:      return "!=";
+    case AST_OP_LTEQ:     return "<=";
+    case AST_OP_GTEQ:     return ">=";
+    case AST_OP_LT:       return "< ";
+    case AST_OP_GT:       return "> ";
+    case AST_OP_EQUAL:    return "==";
+    case AST_OP_OR:       return "||";
+    case AST_OP_AND:      return "&&";
+    case AST_OP_NOT:      return "!";
+    case AST_OP_PLUS:     return "+";
+    case AST_OP_MINUS:    return "-";
+    case AST_OP_MOD:      return "%";
+    case AST_OP_MULT:     return "*";
+    case AST_OP_DIV:      return "/";
+    case AST_OP_IDIV:     return "\\";
+    case AST_OP_POW:      return "^";
+    case AST_OP_SIGN:     return "-";
+    case AST_VAL_STRING:  return "STR";
+    case AST_VAL_INTEGER: return "INT";
+    case AST_VAL_VAR:     return "VAR";
+    default:              return "(?)";
+  }
+}
+
+//-----------------------------------------------------------------------------
+void debugPrintAstRaw()
+{
+  for (int i = 0; i < maxAst; i++)
+    printf("%3d: %-5s  %3d %3d %3d %3d\n", i, astOp(ast[i].op), ast[i].param[0], ast[i].param[1], ast[i].param[2], ast[i].param[3]);
+}
+
+//-----------------------------------------------------------------------------
 void debugPrintAst(int i, int indent)
 {
   switch (ast[i].op)
@@ -427,8 +498,8 @@ void debugPrintAst(int i, int indent)
       printf("\n");
       debugPrintAst(ast[i].param[0], indent+1); printf("\n");
       INDENT(); printf("LOOP");
-      if (ast[i].param[1] != -1) { printf(" WHILE "); debugPrintAst(ast[i].param[1], indent+1); }
-      printf("\n");
+      if (ast[i].param[2] != -1) { printf(" WHILE "); debugPrintAst(ast[i].param[2], indent+1); }
+      break;
     case AST_CMD_REM:
       INDENT(); printf("REM");
       break;
@@ -437,55 +508,32 @@ void debugPrintAst(int i, int indent)
       break;
 
     case AST_OP_NEQ:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" != "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
     case AST_OP_LTEQ:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" <= "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
     case AST_OP_GTEQ:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" >= "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
     case AST_OP_LT:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" < "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
     case AST_OP_GT:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" > "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
     case AST_OP_EQUAL:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" == "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
     case AST_OP_OR:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" || "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
     case AST_OP_AND:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" && "); debugPrintAst(ast[i].param[1], 0); printf(")");
+    case AST_OP_PLUS:
+    case AST_OP_MINUS:
+    case AST_OP_MOD:
+    case AST_OP_MULT:
+    case AST_OP_DIV:
+    case AST_OP_IDIV:
+    case AST_OP_POW:
+      printf("(");
+      debugPrintAst(ast[i].param[0], 0);
+      printf(" %s ", astOp(ast[i].op));
+      debugPrintAst(ast[i].param[1], 0);
+      printf(")");
       break;
     case AST_OP_NOT:
-      printf("(!"); debugPrintAst(ast[i].param[0], 0); printf(")");
-      break;
-    case AST_OP_PLUS:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" + "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
-    case AST_OP_MINUS:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" - "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
-    case AST_OP_MOD:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" MOD "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
-    case AST_OP_MULT:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" * "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
-    case AST_OP_DIV:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" / "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
-    case AST_OP_IDIV:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" \\ "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
-    case AST_OP_POW:
-      printf("("); debugPrintAst(ast[i].param[0], 0); printf(" ^ "); debugPrintAst(ast[i].param[1], 0); printf(")");
-      break;
     case AST_OP_SIGN:
-      printf("(-"); debugPrintAst(ast[i].param[0], 0); printf(")");
+      printf("(");
+      printf("%s", astOp(ast[i].op));
+      debugPrintAst(ast[i].param[0], 0);
+      printf(")");
       break;
 
     case AST_VAL_STRING:
@@ -512,6 +560,8 @@ int main()
     printf("ERROR\n");
   printf("Unparsed: '%.*s'\n", 15, readChars(0, false));
 
+  printf("\n----------------------------------------------------------------------------\n");
+  debugPrintAstRaw();
   printf("\n============================================================================\n");
   debugPrintAst(maxAst-1, 0); printf("\n");
   return 0;
