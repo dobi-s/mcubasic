@@ -9,27 +9,13 @@
 #define CHECK(x)       do { int _x = (x); if (_x < 0) return _x; } while(0)
 
 //=============================================================================
-// Test program
-//=============================================================================
-// const char prog[] =
-// "\n  \n"
-// "IF 1=NOT 1 THEN   \n"
-// "  PRINT \"abc\"\n"
-// "ELSE\n"
-// "  PRINT \"xyz\"\n"
-// "ENDIF\n"
-// "REM  ( 1    +   0xBEEF  )   MOD   \"2 * -3\"    OR    4 <> 7    THEN \n"
-// "PRINT \"Hallo\"\n"
-// "\0";
-
-
-//=============================================================================
 // Typedefs
 //=============================================================================
 typedef enum
 {
   AST_STMTS,
   AST_CMD_PRINT,
+  AST_CMD_LET,
   AST_CMD_IF,
   AST_CMD_DO,
   AST_CMD_FOR,
@@ -55,6 +41,7 @@ typedef enum
   AST_VAL_STRING,
   AST_VAL_INTEGER,
   AST_VAL_VAR,
+  AST_VAL_REG,
 } eAstOp;
 
 typedef struct sAst
@@ -71,15 +58,15 @@ typedef struct
   eAstOp      operator;
 } sOperators;
 
-typedef int (*fParser)(const char **, int);
+typedef int (*fParser)(int);
 
 //=============================================================================
 // Prototypes
 //=============================================================================
-static int parseDual(const char** s, int level);
-static int parsePrefix(const char** s, int level);
-static int parseVal(const char** s, int level);
-static int parseBlock(const char** s);
+static int parseDual(int level);
+static int parsePrefix(int level);
+static int parseVal(int level);
+static int parseBlock(void);
 
 //=============================================================================
 // Constants
@@ -122,33 +109,35 @@ static const fParser parser[] =
 //=============================================================================
 // Private variables
 //=============================================================================
+const char* s = NULL;
 sAst ast[200];
 int maxAst = 0;
 
 //=============================================================================
 // Private functions
 //=============================================================================
-static const char* readChars(int cnt, bool skipSpace)
+static void readChars(int cnt, bool skipSpace)
 {
   static char buffer[16];
-  static bool init = false;
   static FILE* file = NULL;
   int c;
 
-  if (!init)
+  if (!s)
   {
     file = fopen("test.bas", "r");
-    if (!file) { printf("Error open file\n"); return &buffer[1]; }
+    if (!file) { printf("Error open file\n"); return; }
     buffer[0] = '\n';
     fread(buffer+1, 1, sizeof(buffer)-1, file);
-    init = true;
+    s = &buffer[1];
   }
 
   while ((cnt > 0 && cnt--) || (skipSpace && buffer[1] == ' '))
   {
     memmove(buffer, buffer+1, sizeof(buffer) - 1);
     if (file && (c = fgetc(file)) != EOF)
+    {
       buffer[sizeof(buffer)-1] = c;
+    }
     else
     {
       if (buffer[sizeof(buffer)-2] == '\n')
@@ -162,40 +151,50 @@ static const char* readChars(int cnt, bool skipSpace)
     }
 
   }
-
-  return &buffer[1];
 }
 
 //-----------------------------------------------------------------------------
-static int keycmp(const char* s, const char* kw)
+static int keycmp(const char* kw)
 {
   if (s[-1] != ' ' && s[-1] != '\n')
     return 0;
 
   int l = 0;
-  while (*kw && (*s == *kw)) { s++; kw++; l++; }
-  return (*kw == '\0' && (*s == ' ' || *s == '\n' || *s == '\0')) ? l : 0;
+  while (kw[l] && (s[l] == kw[l])) l++;
+  return (kw[l] == '\0' && (s[l] == ' ' || s[l] == '\n')) ? l : 0;
 }
 
 //-----------------------------------------------------------------------------
-static int keycon(const char** s, const char* kw)
+static int keycon(const char* kw)
 {
-  int l = keycmp(*s, kw);
+  int l = keycmp(kw);
   if (l > 0)
-    *s = readChars(l, true);
+    readChars(l, true);
   return l;
 }
 
 //-----------------------------------------------------------------------------
-static int strcon(const char** s, const char* str)
+static int strcon(const char* str)
 {
-  const char* ss = *s;
   int l = 0;
-  while (*str && (*ss == *str)) {ss++; str++; l++;}
-  if (*str)
+  while (str[l] && (s[l] == str[l])) l++;
+  if (str[l])
     return 0;
   if (l > 0)
-    *s = readChars(l, true);
+    readChars(l, true);
+  return l;
+}
+
+//-----------------------------------------------------------------------------
+static int namecon(char* name)
+{
+  if ((*s < 'A' || *s > 'Z') && *s != '$') return -1;
+
+  int l = 1;
+  while ((l <= 10) && ((s[l] >= 'A' && s[l] <= 'Z') || (s[l] >= '0' && s[l] <= '9') || s[l] == '_')) l++;
+  memcpy(name, s, l);
+  readChars(l, true);
+  printf("Name parsed '%.*s'\n", l, name);
   return l;
 }
 
@@ -213,82 +212,100 @@ static int makeAst(eAstOp op, int p0, int p1, int p2, int p3)
 }
 
 //-----------------------------------------------------------------------------
-static int parseVal(const char** s, int level)
+static int parseVar()
+{
+  char name[16];
+  if (*s < 'A' || *s > 'Z' || !namecon(name)) return -1;
+  (void)name; // TODO: find variable index
+  return makeAst(AST_VAL_VAR, 0, -1, -1, -1);
+}
+
+//-----------------------------------------------------------------------------
+static int parseReg()
+{
+  char name[16];
+  if (*s != '$' || !namecon(name)) return -1;
+  (void)name; // TODO: find variable index
+  return makeAst(AST_VAL_REG, 0, -1, -1, -1);
+}
+
+//-----------------------------------------------------------------------------
+static int parseVal(int level)
 {
   (void)level;
 
   // String
-  if (**s == '"')
+  if (*s == '"')
   {
     char str[80];
     int  len = 0;
-    *s = readChars(1, false);
-    while (**s != '"')
+    readChars(1, false);
+    while (*s != '"')
     {
-      if (**s < ' ')
+      if (*s < ' ')
         return -1;
 
-      str[len++] = **s;
-      *s = readChars(1, false);
+      str[len++] = *s;
+      readChars(1, false);
     }
-    *s = readChars(1, true);
+    readChars(1, true);
     return makeAst(AST_VAL_STRING, -1, -1, -1, -1); // TODO: add string data
   }
 
   // Bracket
-  if (strcon(s, "("))
+  if (strcon("("))
   {
     int a;
-    CHECK(a = parser[0](s, 0));
-    if (!strcon(s, ")")) return -1;
+    CHECK(a = parser[0](0));
+    if (!strcon(")")) return -1;
     return a;
   }
 
   // Hex
-  if (memcmp(*s, "0x", 2) == 0 || memcmp(*s, "&H", 2) == 0)
+  if (memcmp(s, "0x", 2) == 0 || memcmp(s, "&H", 2) == 0)
   {
-    *s = readChars(2, false);
+    readChars(2, false);
     int res = 0;
     while (1)
     {
-      if (**s >= '0' && **s <= '9')
-        res = 16*res + (**s - '0');
-      else if (**s >= 'A' && **s <= 'F')
-        res = 16*res + (**s - 'A' + 10);
+      if (*s >= '0' && *s <= '9')
+        res = 16*res + (*s - '0');
+      else if (*s >= 'A' && *s <= 'F')
+        res = 16*res + (*s - 'A' + 10);
       else
         break;
-      *s = readChars(1, false);
+      readChars(1, false);
     }
-    if (res == 0 && *(*s-1) != '0')
+    if (res == 0 && s[-1] != '0')
       return -1;
-    *s = readChars(0, true);
+    readChars(0, true);
     return makeAst(AST_VAL_INTEGER, res, -1, -1, -1);
   }
 
   // Decimal
-  if (**s >= '0' && **s <= '9')
+  if (*s >= '0' && *s <= '9')
   {
     int res = 0;
     while(1)
     {
-      if (**s >= '0' && **s <= '9')
-        res = 10*res + (**s - '0');
+      if (*s >= '0' && *s <= '9')
+        res = 10*res + (*s - '0');
       else
         break;
-      *s = readChars(1, false);
+      readChars(1, false);
     }
-    *s = readChars(0, true);
+    readChars(0, true);
     return makeAst(AST_VAL_INTEGER, res, -1, -1, -1);
   }
 }
 
 //-----------------------------------------------------------------------------
-static int parseDual(const char** s, int level)
+static int parseDual(int level)
 {
   int op;
   int a, b;
 
-  CHECK(a = parser[level+1](s, level+1));
+  CHECK(a = parser[level+1](level+1));
 
   while (1)
   {
@@ -297,20 +314,20 @@ static int parseDual(const char** s, int level)
       if (operators[op].level != level)
         continue;
 
-      if ((operators[op].str[0] == ' ' && keycon(s, operators[op].str+1)) ||
-          (operators[op].str[0] != ' ' && strcon(s, operators[op].str)))
+      if ((operators[op].str[0] == ' ' && keycon(operators[op].str+1)) ||
+          (operators[op].str[0] != ' ' && strcon(operators[op].str)))
         break;
     }
     if (op >= ARRAY_SIZE(operators))
       return a;
 
-    CHECK(b = parser[level+1](s, level+1));
+    CHECK(b = parser[level+1](level+1));
     a = makeAst(operators[op].operator, a, b, -1, -1);
   }
 }
 
 //-----------------------------------------------------------------------------
-static int parsePrefix(const char** s, int level)
+static int parsePrefix(int level)
 {
   int op;
   int a;
@@ -320,103 +337,120 @@ static int parsePrefix(const char** s, int level)
     if (operators[op].level != level)
       continue;
 
-    if (strcon(s, operators[op].str))
+    if (strcon(operators[op].str))
       break;
   }
   if (op >= ARRAY_SIZE(operators))
-    return parser[level+1](s, level+1);
+    return parser[level+1](level+1);
 
-  CHECK (a = parser[level](s, level));
+  CHECK (a = parser[level](level));
   return makeAst(operators[op].operator, a, -1, -1, -1);
 }
 
 //-----------------------------------------------------------------------------
-static int parseStmt(const char** s)
+static int parseStmt(void)
 {
-  while (strcon(s, "\n"));
+  int a = -1;
+  int b = -1;
+  int c = -1;
+  int d = -1;
 
-  if (keycon(s, "PRINT"))
+  while (strcon("\n"));
+
+  if (keycon("PRINT"))
   {
-    int a;
-    CHECK (a = parser[0](s, 0));
-    if (!strcon(s, "\n")) return -1;
-    return makeAst(AST_CMD_PRINT, a, -1, -1, -1);
+    CHECK (a = parser[0](0));
+    if (!strcon("\n")) return -1;
+    return makeAst(AST_CMD_PRINT, a, b, c, d);
   }
 
-  if (keycon(s, "IF"))
+  if (keycon("IF"))
   {
-    int c = -1;
-    int a, b;
-    CHECK(a = parser[0](s, 0));
-    if (!keycon(s, "THEN")) return -1;
-    if (!strcon(s, "\n")) return -1;
-    CHECK(b = parseBlock(s));
-    if (keycon(s, "ELSE"))
+    CHECK(a = parser[0](0));
+    if (!keycon("THEN")) return -1;
+    if (!strcon("\n")) return -1;
+    CHECK(b = parseBlock());
+    if (keycon("ELSE"))
     {
-      if (!strcon(s, "\n")) return -1;
-      CHECK(c = parseBlock(s));
+      if (!strcon("\n")) return -1;
+      CHECK(c = parseBlock());
     }
-    if (!keycon(s, "ENDIF")) return -1;
-    if (!strcon(s, "\n")) return -1;
-    return makeAst(AST_CMD_IF, a, b, c, -1);
+    if (!keycon("ENDIF")) return -1;
+    if (!strcon("\n")) return -1;
+    return makeAst(AST_CMD_IF, a, b, c, d);
   }
 
-  if (keycon(s, "DO"))
+  if (keycon("DO"))
   {
-    int a; // statements
-    int b = -1; // do while condition
-    int c = -1; // loop while condition
-    if (keycon(s, "WHILE"))
-      CHECK(b = parser[0](s, 0));
-    else if (keycon(s, "UNTIL"))
+    if (keycon("WHILE"))
+      CHECK(b = parser[0](0));
+    else if (keycon("UNTIL"))
     {
-      CHECK(b = parser[0](s, 0));
-      b = makeAst(AST_OP_NOT, b, -1, -1, -1);
+      CHECK(b = parser[0](0));
+      CHECK(b = makeAst(AST_OP_NOT, b, -1, -1, -1));
     }
-    if (!strcon(s, "\n")) return -1;
-    CHECK(a = parseBlock(s));
-    if (!keycon(s, "LOOP")) return -1;
-    if (keycon(s, "WHILE"))
-      CHECK(c = parser[0](s, 0));
-    else if (keycon(s, "UNTIL"))
+    if (!strcon("\n")) return -1;
+    CHECK(a = parseBlock());
+    if (!keycon("LOOP")) return -1;
+    if (keycon("WHILE"))
+      CHECK(c = parser[0](0));
+    else if (keycon("UNTIL"))
     {
-      CHECK(b = parser[0](s, 0));
-      b = makeAst(AST_OP_NOT, b, -1, -1, -1);
+      CHECK(b = parser[0](0));
+      CHECK(b = makeAst(AST_OP_NOT, b, -1, -1, -1));
     }
-    if (!strcon(s, "\n")) return -1;
-    return makeAst(AST_CMD_DO, a, b, c, -1);
+    if (!strcon("\n")) return -1;
+    return makeAst(AST_CMD_DO, a, b, c, d);
   }
 
-  if (keycon(s, "REM"))
+  if (keycon("FOR"))
   {
-    while (**s != '\n') *s = readChars(1, true);
-    return makeAst(AST_CMD_REM, -1, -1, -1, -1);
+    int x, y;
+    if ((x = parseVar()) < 0 && (x = parseReg()) < 0) return x;
+    if (!strcon("=")) return -1;
+    CHECK(y = parser[0](0));
+    CHECK(b = makeAst(AST_CMD_LET, x, y, -1, -1));
+    if (!keycon("TO")) return -1;
+    CHECK(c = parser[0](0));
+    if (keycon("STEP"))
+      CHECK(d = parser[0](0));
+    if (!strcon("\n")) return -1;
+    CHECK(a = parseBlock());
+    if (!keycon("NEXT")) return -1;
+    if (!strcon("\n")) return -1;
+    return makeAst(AST_CMD_FOR, a, b, c, d);
+  }
+
+  if (keycon("REM"))
+  {
+    while (*s != '\n') readChars(1, true);
+    return makeAst(AST_CMD_REM, a, b, c, d);
   }
 
   return -1;
 }
 
 //-----------------------------------------------------------------------------
-static int parseBlock(const char** s)
+static int parseBlock(void)
 {
   int a = -1;
   int b;
 
   while (1)
   {
-    if (strcon(s, "\n"))
+    if (strcon("\n"))
       continue; // Skip empty lines
 
-    if (keycmp(*s, "ELSE") ||
-        keycmp(*s, "ENDIF") ||
-        keycmp(*s, "NEXT") ||
-        keycmp(*s, "LOOP") ||
-        (**s == '\0'))
+    if (keycmp("ELSE") ||
+        keycmp("ENDIF") ||
+        keycmp("NEXT") ||
+        keycmp("LOOP") ||
+        (*s == '\0'))
     {
       return (a != -1) ? a : makeAst(AST_CMD_NOP, -1, -1, -1, -1);
     }
 
-    CHECK(b = parseStmt(s));
+    CHECK(b = parseStmt());
     a = (a == -1) ? b : makeAst(AST_STMTS, a, b, -1, -1);
   }
 }
@@ -432,9 +466,10 @@ static const char* astOp(eAstOp op)
   switch (op)
   {
     case AST_STMTS:       return "STM";
-    case AST_CMD_PRINT:   return "PRN";
-    case AST_CMD_IF:      return "IF ";
-    case AST_CMD_DO:      return "DO ";
+    case AST_CMD_PRINT:   return "PRINT";
+    case AST_CMD_LET:     return "LET";
+    case AST_CMD_IF:      return "IF";
+    case AST_CMD_DO:      return "DO";
     case AST_CMD_FOR:     return "FOR";
     case AST_CMD_REM:     return "REM";
     case AST_CMD_NOP:     return "NOP";
@@ -458,6 +493,7 @@ static const char* astOp(eAstOp op)
     case AST_VAL_STRING:  return "STR";
     case AST_VAL_INTEGER: return "INT";
     case AST_VAL_VAR:     return "VAR";
+    case AST_VAL_REG:     return "REG";
     default:              return "(?)";
   }
 }
@@ -483,6 +519,12 @@ void debugPrintAst(int i, int indent)
       INDENT(); printf("PRINT ");
       debugPrintAst(ast[i].param[0], indent);
       break;
+    case AST_CMD_LET:
+      INDENT();
+      debugPrintAst(ast[i].param[0], indent);
+      printf(" = ");
+      debugPrintAst(ast[i].param[1], indent);
+      break;
     case AST_CMD_IF:
       INDENT(); printf("IF ");
       debugPrintAst(ast[i].param[0], indent);
@@ -499,6 +541,16 @@ void debugPrintAst(int i, int indent)
       debugPrintAst(ast[i].param[0], indent+1); printf("\n");
       INDENT(); printf("LOOP");
       if (ast[i].param[2] != -1) { printf(" WHILE "); debugPrintAst(ast[i].param[2], indent+1); }
+      break;
+    case AST_CMD_FOR:
+      INDENT(); printf("FOR ");
+      debugPrintAst(ast[i].param[1], 0);
+      printf(" TO ");
+      debugPrintAst(ast[i].param[2], 0);
+      if (ast[i].param[3] != -1) { printf(" STEP "); debugPrintAst(ast[i].param[3], 0); }
+      printf("\n");
+      debugPrintAst(ast[i].param[0], indent+1); printf("\n");
+      INDENT(); printf("NEXT");
       break;
     case AST_CMD_REM:
       INDENT(); printf("REM");
@@ -543,7 +595,8 @@ void debugPrintAst(int i, int indent)
       printf("%d", ast[i].param[0]);
       break;
     case AST_VAL_VAR:
-      printf("VAR");
+    case AST_VAL_REG:
+      printf("%s%d", astOp(ast[i].op), ast[i].param[0]);
       break;
   }
 }
@@ -555,10 +608,10 @@ int main()
 {
   printf("\e[1;1H\e[2J\n=[ Start ]==================================================================\n");
 
-  const char* s = readChars(0, true);
-  if (parseBlock(&s) < 0)
+  readChars(0, true);
+  if (parseBlock() < 0)
     printf("ERROR\n");
-  printf("Unparsed: '%.*s'\n", 15, readChars(0, false));
+  printf("Unparsed: '%.*s'\n", 15, s);
 
   printf("\n----------------------------------------------------------------------------\n");
   debugPrintAstRaw();

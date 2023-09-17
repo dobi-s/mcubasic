@@ -7,4 +7,7 @@ ENDIF
 REM  ( 1    +   0xBEEF  )   MOD   "2 * -3"    OR    4 <> 7    THEN
 DO UNTIL 1 > 2
 LOOP
-  PRINT "Hallo"
+
+FOR A123 = 3 TO 10
+PRINT "Hallo"
+NEXT
