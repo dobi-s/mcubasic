@@ -1,13 +1,19 @@
-
+PRINT 123
 IF 1=NOT 1 THEN
   PRINT "abc"
+  PRINT $TICK
 ELSE
   PRINT "xyz"
 ENDIF
+X = 2-2
 REM  ( 1    +   0xBEEF  )   MOD   "2 * -3"    OR    4 <> 7    THEN
-DO UNTIL 1 > 2
-LOOP
+Test:
+Test2:
+DO
+  PRINT 999
+LOOP WHILE 4.1e-1 = 5
+GOTO Test2
 
-FOR A123 = 3 TO 10
+FOR A123 = 3 TO 10 STEP 2
 PRINT "Hallo"
 NEXT
