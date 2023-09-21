@@ -20,23 +20,23 @@ static const char* opStr(eOp op)
     case CMD_END:     return "END";
     case LNK_GOTO:    return "GOTO*";
     case LNK_GOSUB:   return "GOSUB*";
-    case OP_NEQ:      return "!=";
+    case OP_NEQ:      return "<>";
     case OP_LTEQ:     return "<=";
     case OP_GTEQ:     return ">=";
     case OP_LT:       return "<";
     case OP_GT:       return ">";
-    case OP_EQUAL:    return "==";
-    case OP_OR:       return "||";
-    case OP_AND:      return "&&";
-    case OP_NOT:      return "!";
+    case OP_EQUAL:    return "=";
+    case OP_OR:       return "OR";
+    case OP_AND:      return "AND";
+    case OP_NOT:      return "NOT ";
     case OP_PLUS:     return "+";
     case OP_MINUS:    return "-";
-    case OP_MOD:      return "%";
+    case OP_MOD:      return "MOD";
     case OP_MULT:     return "*";
     case OP_DIV:      return "/";
     case OP_IDIV:     return "\\";
     case OP_POW:      return "^";
-    case OP_SIGN:     return "~";
+    case OP_SIGN:     return "-";
     case VAL_STRING:  return "STR";
     case VAL_INTEGER: return "INT";
     case VAL_FLOAT:   return "FLT";
@@ -47,9 +47,48 @@ static const char* opStr(eOp op)
 }
 
 //-----------------------------------------------------------------------------
-static void debugPrintPrettyExpr(idxType e)
+const char* errmsg(int err)
 {
-  switch (code[e].op)
+  switch (err)
+  {
+    case ERR_NAME_INV:      return "Invalid name";
+    case ERR_MEM_CODE:      return "Not enough code memory";
+    case ERR_VAR_UNDEF:     return "Variable undefined";
+    case ERR_VAR_COUNT:     return "Too many variables";
+    case ERR_REG_NOT_FOUND: return "Register does not exist";
+    case ERR_VAR_NAME:      return "Invalid variable name";
+    case ERR_REG_NAME:      return "Invalid register name";
+    case ERR_STR_INV:       return "Invalid register name";
+    case ERR_STR_MEM:       return "Not enough string memory";
+    case ERR_STR_LENGTH:    return "String too long";
+    case ERR_EXPR_BRACKETS: return "Brackets not closed";
+    case ERR_NUM_INV:       return "Invalid number";
+    case ERR_NEWLINE:       return "Newline expected";
+    case ERR_IF_THEN:       return "THEN expected";
+    case ERR_IF_ENDIF:      return "ENDIF expected";
+    case ERR_DO_LOOP:       return "LOOP expected";
+    case ERR_ASSIGN:        return "Assignment (=) expected";
+    case ERR_FOR_TO:        return "TO expected";
+    case ERR_FOR_NEXT:      return "NEXT expected";
+    case ERR_EXPR_MISSING:  return "Expression missing";
+    case ERR_LABEL_COUNT:   return "Too many labels";
+    case ERR_LABEL_DUPL:    return "Duplicate label";
+    case ERR_EOF:           return "EOF expected";
+    case ERR_LABEL_INV:     return "Label invalid";
+    case ERR_LABEL_MISSING: return "Label missing";
+    case ERR_NOT_IMPL:      return "Not implemented yet";
+    default:                return "(unknown)";
+  }
+}
+
+//-----------------------------------------------------------------------------
+static void debugPrintPrettyExpr(const sSys* sys, idxType e)
+{
+  sCodeIdx c;
+  if (sys->getCode(&c, e) < 0)
+    return;
+
+  switch (c.code.op)
   {
     case OP_NEQ:
     case OP_LTEQ:
@@ -67,32 +106,35 @@ static void debugPrintPrettyExpr(idxType e)
     case OP_IDIV:
     case OP_POW:
       printf("(");
-      debugPrintPrettyExpr(code[e].expr.lhs);
-      printf("%s", opStr(code[e].op));
-      debugPrintPrettyExpr(code[e].expr.rhs);
+      debugPrintPrettyExpr(sys, c.code.expr.lhs);
+      printf(" %s ", opStr(c.code.op));
+      debugPrintPrettyExpr(sys, c.code.expr.rhs);
       printf(")");
       break;
     case OP_NOT:
     case OP_SIGN:
-      printf("(");
-      printf("%s", opStr(code[e].op));
-      debugPrintPrettyExpr(code[e].expr.lhs);
+      printf("(%s", opStr(c.code.op));
+      debugPrintPrettyExpr(sys, c.code.expr.lhs);
       printf(")");
       break;
     case VAL_STRING:
-      printf("\"%.*s\"", code[e].str.len, &strings[code[e].str.start]);
+      {
+        char str[MAX_STRING];
+        sys->getString(str, c.code.str.start, c.code.str.len);
+        printf("\"%.*s\"", c.code.str.len, str);
+      }
       break;
     case VAL_INTEGER:
-      printf("%d", code[e].iValue);
+      printf("%d", c.code.iValue);
       break;
     case VAL_FLOAT:
-      printf("%f", code[e].fValue);
+      printf("%f", c.code.fValue);
       break;
     case VAL_VAR:
-      printf("V%d", code[e].param);
+      printf("V%d", c.code.param);
       break;
     case VAL_REG:
-      printf("R%d", code[e].param);
+      printf("%s", sys->regs[c.code.param].name);
       break;
     default:
       break;
@@ -102,24 +144,29 @@ static void debugPrintPrettyExpr(idxType e)
 //=============================================================================
 // Public functions
 //=============================================================================
-void debugPrintRaw(void)
+void debugPrintRaw(const sSys* sys)
 {
+  sCodeIdx c;
+
   for (int i = 0; i < CODE_MEM; i++)
   {
-    switch (code[i].op)
+    if (sys->getCode(&c, i) < 0)
+      break;
+
+    switch (c.code.op)
     {
       case CMD_INVALID:    break;
-      case CMD_PRINT:      printf("%3d: %-7s       %3d\n", i, opStr(code[i].op), code[i].cmd.expr); break;
-      case CMD_LET:        printf("%3d: %-7s V%02d = %3d\n", i, opStr(code[i].op), code[i].cmd.param, code[i].cmd.expr); break;
-      case CMD_SET:        printf("%3d: %-7s R%02d = %3d\n", i, opStr(code[i].op), code[i].cmd.param, code[i].cmd.expr); break;
-      case CMD_IF:         printf("%3d: %-7s       %3d -> %3d\n", i, opStr(code[i].op), code[i].cmd.expr, code[i].cmd.param); break;
+      case CMD_PRINT:      printf("%3d: %-7s       %3d\n", i, opStr(c.code.op), c.code.cmd.expr); break;
+      case CMD_LET:        printf("%3d: %-7s V%02d = %3d\n", i, opStr(c.code.op), c.code.cmd.param, c.code.cmd.expr); break;
+      case CMD_SET:        printf("%3d: %-7s R%02d = %3d\n", i, opStr(c.code.op), c.code.cmd.param, c.code.cmd.expr); break;
+      case CMD_IF:         printf("%3d: %-7s       %3d -> %3d\n", i, opStr(c.code.op), c.code.cmd.expr, c.code.cmd.param); break;
       case CMD_GOTO:
-      case CMD_GOSUB:      printf("%3d: %-7s           -> %3d\n", i, opStr(code[i].op), code[i].cmd.param); break;
+      case CMD_GOSUB:      printf("%3d: %-7s           -> %3d\n", i, opStr(c.code.op), c.code.cmd.param); break;
       case CMD_RETURN:
       case CMD_NOP:
-      case CMD_END:        printf("%3d: %-7s\n", i, opStr(code[i].op)); break;
+      case CMD_END:        printf("%3d: %-7s\n", i, opStr(c.code.op)); break;
       case LNK_GOTO:
-      case LNK_GOSUB:      printf("%3d: %-7s           -> %3d\n", i, opStr(code[i].op), code[i].cmd.param); break;
+      case LNK_GOSUB:      printf("%3d: %-7s           -> %3d\n", i, opStr(c.code.op), c.code.cmd.param); break;
       case OP_NEQ:
       case OP_LTEQ:
       case OP_GTEQ:
@@ -134,14 +181,14 @@ void debugPrintRaw(void)
       case OP_MULT:
       case OP_DIV:
       case OP_IDIV:
-      case OP_POW:         printf("%3d: %3d %-2s %3d\n", i, code[i].expr.lhs, opStr(code[i].op), code[i].expr.rhs); break;
+      case OP_POW:         printf("%3d: %3d %-2s %3d\n", i, c.code.expr.lhs, opStr(c.code.op), c.code.expr.rhs); break;
       case OP_NOT:
-      case OP_SIGN:        printf("%3d: %s %3d\n", i, opStr(code[i].op), code[i].expr.lhs); break;
-      case VAL_STRING:     printf("%3d: %-7s %3d %3d\n", i, opStr(code[i].op), code[i].str.start, code[i].str.len); break;
-      case VAL_INTEGER:    printf("%3d: %-7s %3d\n", i, opStr(code[i].op), code[i].iValue); break;
-      case VAL_FLOAT:      printf("%3d: %-7s %f\n", i, opStr(code[i].op), code[i].fValue); break;
+      case OP_SIGN:        printf("%3d: %s %3d\n", i, opStr(c.code.op), c.code.expr.lhs); break;
+      case VAL_STRING:     printf("%3d: %-7s %3d %3d\n", i, opStr(c.code.op), c.code.str.start, c.code.str.len); break;
+      case VAL_INTEGER:    printf("%3d: %-7s %3d\n", i, opStr(c.code.op), c.code.iValue); break;
+      case VAL_FLOAT:      printf("%3d: %-7s %f\n", i, opStr(c.code.op), c.code.fValue); break;
       case VAL_VAR:
-      case VAL_REG:        printf("%3d: %-7s %3d\n", i, opStr(code[i].op), code[i].param); break;
+      case VAL_REG:        printf("%3d: %-7s %3d\n", i, opStr(c.code.op), c.code.param); break;
       default:             printf("???\n"); break;
     }
   }
@@ -160,12 +207,6 @@ void debugPrintRaw(void)
   //     printf("  %3d: '%.*s'\n", i, MAX_NAME, varname[i]);
   // printf("\n");
 
-  printf("Registers:\n");
-  for (int i = 0; i < MAX_REG_NUM; i++)
-    if (regs[i].name[0])
-      printf("  %3d: '%.*s'\n", i, MAX_NAME, regs[i].name);
-  printf("\n");
-
   // printf("Labels:\n");
   // for (int i = 0; i < ARRAY_SIZE(labels); i++)
   //   if (labels[i][0])
@@ -174,40 +215,66 @@ void debugPrintRaw(void)
 }
 
 //-----------------------------------------------------------------------------
-void debugPrintPretty(void)
+void debugPrintPretty(const sSys* sys)
 {
+  sCodeIdx c;
+  uint32_t labels[(CODE_MEM + 31) / 32] = {0};
+
   for (int i = 0; i < CODE_MEM; i++)
   {
-    switch (code[i].op)
+    if (sys->getCode(&c, i) < 0)
+      continue;
+
+    switch (c.code.op)
+    {
+      case CMD_GOSUB:
+      case CMD_GOTO:
+      case CMD_IF:
+        labels[c.code.cmd.param >> 5] |= (1U << (c.code.cmd.param & 0x1f));
+        break;
+    }
+  }
+
+  for (int i = 0; i < CODE_MEM; i++)
+  {
+    if (sys->getCode(&c, i) < 0 || c.code.op < CODE_START || c.code.op > CODE_END)
+      continue;
+
+    if (labels[i >> 5] & (1U << (i & 0x1f)))
+      printf("L%03d: ", i);
+    else
+      printf("      ");
+
+    switch (c.code.op)
     {
       case CMD_PRINT:
-        printf("%3d: %-7s ", i, opStr(code[i].op));
-        debugPrintPrettyExpr(code[i].cmd.expr);
+        printf("%-7s ", opStr(c.code.op));
+        debugPrintPrettyExpr(sys, c.code.cmd.expr);
         printf("\n");
         break;
       case CMD_LET:
       case CMD_SET:
-        printf("%3d: %-7s %c%d = ", i, opStr(code[i].op), (code[i].op == CMD_LET) ? 'V' : 'R', code[i].cmd.param);
-        debugPrintPrettyExpr(code[i].cmd.expr);
+        printf("%-7s %c%d = ", opStr(c.code.op), (c.code.op == CMD_LET) ? 'V' : 'R', c.code.cmd.param);
+        debugPrintPrettyExpr(sys, c.code.cmd.expr);
         printf("\n");
         break;
       case CMD_IF:
-        printf("%3d: %-7s !", i, opStr(code[i].op));
-        debugPrintPrettyExpr(code[i].cmd.expr);
-        printf(" GOTO %d", code[i].cmd.param);
+        printf("%-7s NOT ", opStr(c.code.op));
+        debugPrintPrettyExpr(sys, c.code.cmd.expr);
+        printf(" THEN GOTO L%03d", c.code.cmd.param);
         printf("\n");
         break;
       case CMD_GOTO:
       case CMD_GOSUB:
       case LNK_GOTO:
       case LNK_GOSUB:
-        printf("%3d: %-7s %d", i, opStr(code[i].op), code[i].cmd.param);
+        printf("%-7s L%03d", opStr(c.code.op), c.code.cmd.param);
         printf("\n");
         break;
       case CMD_RETURN:
       case CMD_NOP:
       case CMD_END:
-        printf("%3d: %-7s", i, opStr(code[i].op));
+        printf("%-7s", opStr(c.code.op));
         printf("\n");
         break;
       default:

@@ -6,14 +6,12 @@
 #include "bytecode.h"
 #include "debug.h"
 #include "parser.h"
+#include "common.h"
 
 //=============================================================================
 // Defines
 //=============================================================================
-#define ARRAY_SIZE(x)  (sizeof(x)/sizeof(x[0]))
-#define CHECK(x)       do { int _x = (x); if (_x < 0) return _x; } while(0)
 #define parseExpr(l)   (parser[l](l))
-#define ENSURE(x,e)    do { if (!(x)) return e; } while(0)
 
 //=============================================================================
 // Typedefs
@@ -34,6 +32,7 @@ typedef int (*fParser)(int);
 static int parseDual(int level);
 static int parsePrefix(int level);
 static int parseVal(int level);
+static int parseStmt(void);
 static int parseBlock(void);
 
 //=============================================================================
@@ -77,19 +76,15 @@ static const fParser parser[] =
 //=============================================================================
 // Private variables
 //=============================================================================
-static int     nextCode = 0;
-static int     nextData = CODE_MEM - 1;
-static int     nextStr = 0;
 static char    varname[MAX_VAR_NUM][MAX_NAME];
 static char    labels[MAX_LABELS][MAX_NAME];
 static idxType labelDst[MAX_LABELS];
 
+static const sSys* sys;
 static const char* s = NULL;
+int lineNum = 1;
+int lineCol = 1;
 
-static FILE* file = NULL;
-static int lineNum   = 1;
-static int lineStart = 0;
-static int filePos   = 0;
 
 //=============================================================================
 // Private functions
@@ -97,37 +92,21 @@ static int filePos   = 0;
 static void readChars(int cnt, bool skipSpace)
 {
   static char buffer[MAX_NAME + 2];
-  int c;
 
   if (!s)
   {
     buffer[0] = '\n';
-    fread(buffer+1, 1, sizeof(buffer)-1, file);
     for (int i = 1; i < sizeof(buffer); i++)
-      if (buffer[i] == '\r' || buffer[i] == '\t') buffer[i] = ' ';
+      buffer[i] = sys->getNextChar();
     s = &buffer[1];
   }
 
-  while ((cnt > 0 && cnt--) || (skipSpace && buffer[1] == ' '))
+  while ((cnt > 0 && cnt--) || (skipSpace && *s == ' '))
   {
+    lineCol = (*s == '\n') ? (++lineNum, 1) : lineCol + 1;
     memmove(buffer, buffer+1, sizeof(buffer) - 1);
-    filePos++;
-    if (s[-1] == '\n') { lineStart = filePos; lineNum++; }
-    if (file && fread(&c, 1, 1, file))
-    {
-      buffer[sizeof(buffer)-1] = (((char)c == '\r' || (char)c == '\t') ? ' ' : c);
-    }
-    else
-    {
-      if (buffer[sizeof(buffer)-2] == '\n')
-      {
-        buffer[sizeof(buffer)-1] = '\0';
-        fclose(file);
-        file = NULL;
-      }
-      else
-        buffer[sizeof(buffer)-1] = '\n';
-    }
+    buffer[sizeof(buffer)-1] = sys->getNextChar();
+    putchar(*s);
   }
 }
 
@@ -222,25 +201,11 @@ static int regIndex(const char* name, int len)
   int idx;
   for (idx = 0; idx < MAX_REG_NUM; idx++)
   {
-    if ((len == MAX_NAME || regs[idx].name[len] == '\0') &&
-        memcmp(name, regs[idx].name, len) == 0)
+    if ((sys->regs[idx].name[len] == '\0'            ) &&
+        (memcmp(name, sys->regs[idx].name, len) == 0))
       return idx;
   }
-
-  // not found -> add
-  for (idx = 0; idx < MAX_REG_NUM; idx++)
-  {
-    if (regs[idx].name[0] == '\0')
-    {
-      memcpy(regs[idx].name, name, len);
-      if (len < MAX_NAME)
-        regs[idx].name[len] = '\0';
-      return idx;
-    }
-  }
-
-  // no free slot found -> error
-  return ERR_REG_COUNT;
+  return ERR_REG_NOT_FOUND;
 }
 
 //-----------------------------------------------------------------------------
@@ -276,93 +241,112 @@ static int lblIndex(const char* name, int len, int dst)
 }
 
 //-----------------------------------------------------------------------------
+static int newCode(sCodeIdx* code, eOp op)
+{
+  CHECK(sys->getCode(code, NEW_CODE));
+  code->code.op = op;
+  return code->idx;
+}
+
+//-----------------------------------------------------------------------------
 static int makeCode(eOp op)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-  code[nextCode].op = op;
-  return nextCode++;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_CODE));
+  code.code.op = op;
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
 static int makeCodeExpr(eOp op, int expr)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-  CHECK(expr);
-  code[nextCode].op       = op;
-  code[nextCode].cmd.expr = expr;
-  return nextCode++;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_CODE));
+  code.code.op = op;
+  CHECK(code.code.cmd.expr = expr);
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
 static int makeCodeExprParam(eOp op, int expr, int param)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-  CHECK(expr);
-  CHECK(param);
-  code[nextCode].op = op;
-  code[nextCode].cmd.expr  = expr;
-  code[nextCode].cmd.param = param;
-  return nextCode++;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_CODE));
+  code.code.op = op;
+  CHECK(code.code.cmd.expr  = expr);
+  CHECK(code.code.cmd.param = param);
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
 static int makeExpr(eOp op, int lhs, int rhs)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-  CHECK(lhs);
-  CHECK(rhs);
-  code[nextData].op = op;
-  code[nextData].expr.lhs = lhs;
-  code[nextData].expr.rhs = rhs;
-  return nextData--;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_DATA));
+  code.code.op = op;
+  CHECK(code.code.expr.lhs = lhs);
+  CHECK(code.code.expr.rhs = rhs);
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
 static int makeVar(const char* name, int len, bool add)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-
-  code[nextData].op = VAL_VAR;
-  CHECK(code[nextData].param = varIndex(name, len, add));
-  return nextData--;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_DATA));
+  code.code.op = VAL_VAR;
+  CHECK(code.code.param = varIndex(name, len, add));
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
 static int makeReg(const char* name, int len)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-
-  code[nextData].op = VAL_REG;
-  CHECK(code[nextData].param = regIndex(name, len));
-  return nextData--;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_DATA));
+  code.code.op = VAL_REG;
+  CHECK(code.code.param = regIndex(name, len));
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
-static int makeStr(idxType start, sLenType len)
+static int makeStr(const char* str, sLenType len)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-  code[nextData].op        = VAL_STRING;
-  code[nextData].str.start = start;
-  code[nextData].str.len   = len;
-  return nextData--;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_DATA));
+  code.code.op = VAL_STRING;
+  CHECK(code.code.str.start = sys->setString(str, len));
+  code.code.str.len = len;
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
 static int makeFloat(float value)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-  code[nextData].op     = VAL_FLOAT;
-  code[nextData].fValue = value;
-  return nextData--;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_DATA));
+  code.code.op     = VAL_FLOAT;
+  code.code.fValue = value;
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
 static int makeInt(int value)
 {
-  ENSURE(nextCode <= nextData, ERR_MEM_CODE);
-  code[nextData].op     = VAL_INTEGER;
-  code[nextData].iValue = value;
-  return nextData--;
+  sCodeIdx code;
+  CHECK(sys->getCode(&code, NEW_DATA));
+  code.code.op     = VAL_INTEGER;
+  code.code.iValue = value;
+  CHECK(sys->setCode(&code));
+  return code.idx;
 }
 
 //-----------------------------------------------------------------------------
@@ -397,17 +381,18 @@ static int parseVal(int level)
   // String
   if (*s == '"')
   {
-    idxType  start = nextStr;
+    char str[MAX_STRING];
+    int  len = 0;
     readChars(1, false);
     while (*s != '"')
     {
       ENSURE(*s >= ' ', ERR_STR_INV);
-      ENSURE(nextStr < sizeof(strings), ERR_STR_MEM);
-      strings[nextStr++] = *s;
+      ENSURE(len < sizeof(str), ERR_STR_LENGTH);
+      str[len++] = *s;
       readChars(1, false);
     }
     readChars(1, true);
-    return makeStr(start, nextStr - start);
+    return makeStr(str, len);
   }
 
   // Bracket
@@ -542,46 +527,56 @@ static int parseReturn()
 //-----------------------------------------------------------------------------
 static int parseIf()
 {
-  int cond;
+  sCodeIdx cond;
 
-  CHECK(cond = makeCodeExpr(CMD_IF, parseExpr(0)));
+  CHECK(newCode(&cond, CMD_IF));
+  CHECK(cond.code.cmd.expr = parseExpr(0));
   ENSURE(keycon("THEN"), ERR_IF_THEN);
   if (strcon("\n"))  // multi line IF
   {
     CHECK(parseBlock());
     if (keycon("ELSE"))
     {
-      int eob;
+      sCodeIdx eob;
       ENSURE(strcon("\n"), ERR_NEWLINE);
-      CHECK(eob = makeCode(CMD_GOTO));
-      code[cond].cmd.param = nextCode;
+      CHECK(newCode(&eob, CMD_GOTO));
+      cond.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
       CHECK(parseBlock());
-      code[eob].cmd.param = nextCode;
+      eob.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
+      CHECK(sys->setCode(&eob));
     }
     else
     {
-      code[cond].cmd.param = nextCode;
+      cond.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
     }
     ENSURE(keycon("ENDIF"), ERR_IF_ENDIF);
     ENSURE(strcon("\n"), ERR_NEWLINE);
-    return 0;
   }
-  else  // single line IF
+  else  // single line IF (no ELSE allowed)
   {
-    return ERR_NOT_IMPL;
+    CHECK (parseStmt());
+    cond.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
   }
+  CHECK(sys->setCode(&cond));
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
 static int parseDo()
 {
-  int hdr = nextCode;
-  int top = -1;
+  idxType hdr = sys->getCode(NULL, NEXT_CODE_IDX);
+  sCodeIdx top = { .idx = -1 };
 
   if (keycon("WHILE"))
-    CHECK(top = makeCodeExpr(CMD_IF, parseExpr(0)));
+  {
+    CHECK(newCode(&top, CMD_IF));
+    CHECK(top.code.cmd.expr = parseExpr(0));
+  }
   else if (keycon("UNTIL"))
-    CHECK(top = makeCodeExpr(CMD_IF, makeExpr(OP_NOT, parseExpr(0), 0)));
+  {
+    CHECK(newCode(&top, CMD_IF));
+    CHECK(top.code.cmd.expr = makeExpr(OP_NOT, parseExpr(0), 0));
+  }
   ENSURE(strcon("\n"), ERR_NEWLINE);
 
   CHECK(parseBlock());
@@ -594,22 +589,28 @@ static int parseDo()
   else
     CHECK(makeCodeExprParam(CMD_GOTO, 0, hdr));
   ENSURE(strcon("\n"), ERR_NEWLINE);
-  if (top != -1)
-    code[top].cmd.param = nextCode;
+  if (top.idx != -1)
+  {
+    top.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
+    CHECK(sys->setCode(&top));
+  }
   return 0;
 }
 
 //-----------------------------------------------------------------------------
 static int parseFor()
 {
-  int varExpr, varIdx, step, hdr;
+  int varExpr, varIdx, step;
+  sCodeIdx code;
 
   CHECK(varExpr = parseVar(true));
-  varIdx = code[varExpr].param;
+  CHECK(sys->getCode(&code, varExpr));
+  varIdx = code.code.param;
   ENSURE(strcon("="), ERR_ASSIGN);
   CHECK(makeCodeExprParam(CMD_LET, parseExpr(0), varIdx));
   ENSURE(keycon("TO"), ERR_FOR_TO);
-  CHECK(hdr = makeCodeExpr(CMD_IF, makeExpr(OP_LTEQ, varExpr, parseExpr(0))));
+  CHECK(newCode(&code, CMD_IF));
+  CHECK(code.code.cmd.expr = makeExpr(OP_LTEQ, varExpr, parseExpr(0)));
   CHECK(step = keycon("STEP") ? parseExpr(0) : makeInt(1));
   ENSURE(strcon("\n"), ERR_NEWLINE);
 
@@ -618,8 +619,9 @@ static int parseFor()
   ENSURE(keycon("NEXT"), ERR_FOR_NEXT);
   ENSURE(strcon("\n"), ERR_NEWLINE);
   CHECK(makeCodeExprParam(CMD_LET, makeExpr(OP_PLUS, varExpr, step), varIdx));
-  CHECK(makeCodeExprParam(CMD_GOTO, 0, hdr));
-  code[hdr].cmd.param = nextCode;
+  CHECK(makeCodeExprParam(CMD_GOTO, 0, code.idx));
+  code.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
+  CHECK(sys->setCode(&code));
   return 0;
 }
 
@@ -632,11 +634,19 @@ static int parseRem()
 }
 
 //-----------------------------------------------------------------------------
-static int parseLabel(const char* name, int len)
+static int parseEnd()
 {
-  CHECK(lblIndex(name, len, nextCode));
+  CHECK(makeCode(CMD_END));
   ENSURE(strcon("\n"), ERR_NEWLINE);
   return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int parseLabel(const char* name, int len)
+{
+  CHECK(lblIndex(name, len, sys->getCode(NULL, NEXT_CODE_IDX)));
+  if (!strcon("\n"));
+  return parseStmt();
 }
 
 //-----------------------------------------------------------------------------
@@ -663,6 +673,8 @@ static int parseStmt(void)
     return parseFor();
   if (keycon("REM"))
     return parseRem();
+  if (keycon("END"))
+    return parseEnd();
   if (keycon("LET"))
   {
     CHECK(len = namecon(&name));
@@ -688,6 +700,7 @@ static int parseBlock(void)
         keycmp("ENDIF") ||
         keycmp("NEXT") ||
         keycmp("LOOP") ||
+        keycmp("EOF") ||
         (*s == '\0'))
     {
       return 0;
@@ -697,79 +710,41 @@ static int parseBlock(void)
   }
 }
 
-//-----------------------------------------------------------------------------
-static const char* errmsg(int err)
-{
-  switch (err)
-  {
-    case ERR_NAME_INV:      return "Invalid name";
-    case ERR_MEM_CODE:      return "Not enough code memory";
-    case ERR_VAR_UNDEF:     return "Variable undefined";
-    case ERR_VAR_COUNT:     return "Too many variables";
-    case ERR_REG_COUNT:     return "Too many registers";
-    case ERR_VAR_NAME:      return "Invalid variable name";
-    case ERR_REG_NAME:      return "Invalid register name";
-    case ERR_STR_INV:       return "Invalid register name";
-    case ERR_STR_MEM:       return "Not enough string memory";
-    case ERR_EXPR_BRACKETS: return "Brackets not closed";
-    case ERR_NUM_INV:       return "Invalid number";
-    case ERR_NEWLINE:       return "Newline expected";
-    case ERR_IF_THEN:       return "THEN expected";
-    case ERR_IF_ENDIF:      return "ENDIF expected";
-    case ERR_DO_LOOP:       return "LOOP expected";
-    case ERR_ASSIGN:        return "Assignment (=) expected";
-    case ERR_FOR_TO:        return "TO expected";
-    case ERR_FOR_NEXT:      return "NEXT expected";
-    case ERR_EXPR_MISSING:  return "Expression missing";
-    case ERR_LABEL_COUNT:   return "Too many labels";
-    case ERR_LABEL_DUPL:    return "Duplicate label";
-    case ERR_NOT_IMPL:      return "Not implemented yet";
-    case ERR_LABEL_INV:     return "Label invalid";
-    case ERR_LABEL_MISSING: return "Label missing";
-    default:                return "(unknown)";
-  }
-}
-
 //=============================================================================
 // Public functions
 //=============================================================================
-int parseAll(const char* filename)
+int parseAll(const sSys* system, int* errline, int* errcol)
 {
-  int err;
-
-  file = fopen(filename, "rb");
-  if (!file) { printf("Error open file\n"); return -1; }
-
+  sys = system;
   readChars(0, true);
 
-  if (((err = parseBlock()     ) >= 0) &&
-      ((err = makeCode(CMD_END)) >= 0))
-  {
-    fclose(file);
+  int err;
+  if (((err = parseBlock()                 ) >= 0) &&
+      ((err = (keycon("EOF") ? 0 : ERR_EOF)) >= 0) &&
+      ((err = makeCode(CMD_END)            ) >= 0))
     return 0;
-  }
 
-  printf("ERROR %d (%s) in Line %d, Col %d\n", err, errmsg(err), lineNum, filePos - lineStart + 1);
-  fseek(file, lineStart, SEEK_SET);
-  char line[256];
-  fgets(line, sizeof(line), file);
-  fclose(file);
-  printf("%.*s", sizeof(line), line);
-  printf("%*s\n", filePos - lineStart + 1, "^");
-  return -1;
+  if (errline)
+    *errline = lineNum;
+  if (errcol)
+    *errcol = lineCol;
+  return err;
 }
 
 //-----------------------------------------------------------------------------
-int link(void)
+int link(const sSys* system)
 {
-  for (idxType i = 0; i < nextCode; i++)
+  sCodeIdx code;
+
+  for (idxType idx = 0; system->getCode(&code, idx) >= 0; idx++)
   {
-    if (code[i].op == LNK_GOTO || code[i].op == LNK_GOSUB)
+    if (code.code.op == LNK_GOTO || code.code.op == LNK_GOSUB)
     {
-      ENSURE(code[i].cmd.param < ARRAY_SIZE(labelDst), ERR_LABEL_INV);
-      ENSURE(labelDst[code[i].cmd.param] != (idxType)-1, ERR_LABEL_MISSING);
-      code[i].op = (code[i].op == LNK_GOTO) ? CMD_GOTO : CMD_GOSUB;
-      code[i].cmd.param = labelDst[code[i].cmd.param];
+      ENSURE(code.code.cmd.param < ARRAY_SIZE(labelDst), ERR_LABEL_INV);
+      ENSURE(labelDst[code.code.cmd.param] != (idxType)-1, ERR_LABEL_MISSING);
+      code.code.op = (code.code.op == LNK_GOTO) ? CMD_GOTO : CMD_GOSUB;
+      code.code.cmd.param = labelDst[code.code.cmd.param];
+      system->setCode(&code);
     }
   }
   return 0;

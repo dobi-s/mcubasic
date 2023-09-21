@@ -4,6 +4,14 @@
 #include "config.h"
 
 //=============================================================================
+// Defines
+//=============================================================================
+#define NEW_CODE        -1
+#define NEW_DATA        -2
+#define NEXT_CODE_IDX   -3
+#define NEXT_DATA_IDX   -4
+
+//=============================================================================
 // Typedefs
 //=============================================================================
 typedef enum
@@ -42,13 +50,18 @@ typedef enum
   VAL_FLOAT,        //                    X
   VAL_VAR,          //                    X
   VAL_REG,          //                    X
+
+  CODE_START = CMD_PRINT,
+  CODE_END   = LNK_GOSUB,
+  DATA_START = OP_NEQ,
+  DATA_END   = VAL_REG,
 } eOp;
 
 //-----------------------------------------------------------------------------
 typedef int32_t   iType;      // Integer value
 typedef float     fType;      // Float value
-typedef uint16_t  idxType;    // Code/data/var/reg/str index
-typedef uint16_t  sLenType;   // String length
+typedef int16_t   idxType;    // Code/data/var/reg/str index
+typedef int16_t   sLenType;   // String length
 
 //-----------------------------------------------------------------------------
 typedef struct sCode
@@ -78,19 +91,30 @@ typedef struct sCode
 } sCode;
 
 //-----------------------------------------------------------------------------
+typedef struct
+{
+  sCode   code;
+  idxType idx;
+} sCodeIdx;
+
+//-----------------------------------------------------------------------------
 typedef int (*fGetter)(sCode* code, int cookie);
 typedef int (*fSetter)(sCode* code, int cookie);
 typedef struct
 {
-  char    name[MAX_NAME];
+  char*   name;
   fGetter getter;
   fSetter setter;
   int     cookie;
 } sReg;
 
-//=============================================================================
-// Public variables
-//=============================================================================
-extern sCode code[CODE_MEM];
-extern char  strings[STRING_MEM];
-extern sReg  regs[MAX_REG_NUM];
+//-----------------------------------------------------------------------------
+typedef struct
+{
+  char (*getNextChar)(void);
+  int  (*setCode)(const sCodeIdx* code);
+  int  (*getCode)(sCodeIdx* code, int idx);
+  int  (*setString)(const char* str, unsigned int len);
+  int  (*getString)(char* str, int start, unsigned int len);
+  sReg regs[MAX_REG_NUM];
+} sSys;
