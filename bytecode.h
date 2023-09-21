@@ -112,6 +112,7 @@ typedef struct
 typedef struct
 {
   char (*getNextChar)(void);
+  int  (*addCode)(const sCode* code);
   int  (*setCode)(const sCodeIdx* code);
   int  (*getCode)(sCodeIdx* code, int idx);
   int  (*setString)(const char* str, unsigned int len);

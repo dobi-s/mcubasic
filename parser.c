@@ -99,6 +99,7 @@ static void readChars(int cnt, bool skipSpace)
     for (int i = 1; i < sizeof(buffer); i++)
       buffer[i] = sys->getNextChar();
     s = &buffer[1];
+    putchar(*s);
   }
 
   while ((cnt > 0 && cnt--) || (skipSpace && *s == ' '))
@@ -272,81 +273,90 @@ static int makeCodeExpr(eOp op, int expr)
 //-----------------------------------------------------------------------------
 static int makeCodeExprParam(eOp op, int expr, int param)
 {
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_CODE));
-  code.code.op = op;
-  CHECK(code.code.cmd.expr  = expr);
-  CHECK(code.code.cmd.param = param);
-  CHECK(sys->setCode(&code));
-  return code.idx;
+  CHECK(expr);
+  CHECK(param);
+
+  sCode code =
+  {
+    .op        = op,
+    .cmd.expr  = expr,
+    .cmd.param = param
+  };
+  return sys->addCode(&code);
 }
 
 //-----------------------------------------------------------------------------
 static int makeExpr(eOp op, int lhs, int rhs)
 {
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_DATA));
-  code.code.op = op;
-  CHECK(code.code.expr.lhs = lhs);
-  CHECK(code.code.expr.rhs = rhs);
-  CHECK(sys->setCode(&code));
-  return code.idx;
+  CHECK(lhs);
+  CHECK(rhs);
+
+  sCode code =
+  {
+    .op       = op,
+    .expr.lhs = lhs,
+    .expr.rhs = rhs
+  };
+  return sys->addCode(&code);
 }
 
 //-----------------------------------------------------------------------------
 static int makeVar(const char* name, int len, bool add)
 {
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_DATA));
-  code.code.op = VAL_VAR;
-  CHECK(code.code.param = varIndex(name, len, add));
-  CHECK(sys->setCode(&code));
-  return code.idx;
+  sCode code =
+  {
+    .op    = VAL_VAR,
+    .param = varIndex(name, len, add)
+  };
+  CHECK(code.param);
+  return sys->addCode(&code);
 }
 
 //-----------------------------------------------------------------------------
 static int makeReg(const char* name, int len)
 {
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_DATA));
-  code.code.op = VAL_REG;
-  CHECK(code.code.param = regIndex(name, len));
-  CHECK(sys->setCode(&code));
-  return code.idx;
+  sCode code =
+  {
+    .op    = VAL_REG,
+    .param = regIndex(name, len)
+  };
+  CHECK(code.param);
+  return sys->addCode(&code);
 }
 
 //-----------------------------------------------------------------------------
 static int makeStr(const char* str, sLenType len)
 {
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_DATA));
-  code.code.op = VAL_STRING;
-  CHECK(code.code.str.start = sys->setString(str, len));
-  code.code.str.len = len;
-  CHECK(sys->setCode(&code));
-  return code.idx;
+  sCode code =
+  {
+    .op        = VAL_STRING,
+    .str.start = sys->setString(str, len),
+    .str.len   = len
+  };
+  CHECK(code.str.start);
+  return sys->addCode(&code);
 }
 
 //-----------------------------------------------------------------------------
 static int makeFloat(float value)
 {
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_DATA));
-  code.code.op     = VAL_FLOAT;
-  code.code.fValue = value;
-  CHECK(sys->setCode(&code));
-  return code.idx;
+  sCode code =
+  {
+    .op     = VAL_FLOAT,
+    .fValue = value
+  };
+  return sys->addCode(&code);
 }
 
 //-----------------------------------------------------------------------------
 static int makeInt(int value)
 {
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_DATA));
-  code.code.op     = VAL_INTEGER;
-  code.code.iValue = value;
-  CHECK(sys->setCode(&code));
-  return code.idx;
+  sCode code =
+  {
+    .op     = VAL_INTEGER,
+    .iValue = value
+  };
+  return sys->addCode(&code);
 }
 
 //-----------------------------------------------------------------------------
