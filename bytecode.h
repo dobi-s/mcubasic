@@ -45,6 +45,7 @@ typedef enum
   OP_IDIV,          //                    X
   OP_POW,           //                    X
   OP_SIGN,          //                    X
+  OP_CONCAT,        //                    X
   VAL_STRING,       //                    X
   VAL_INTEGER,      //                    X
   VAL_FLOAT,        //                    X

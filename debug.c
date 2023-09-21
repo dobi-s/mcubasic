@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include "bytecode.h"
 #include "parser.h"
@@ -37,6 +38,7 @@ static const char* opStr(eOp op)
     case OP_IDIV:     return "\\";
     case OP_POW:      return "^";
     case OP_SIGN:     return "-";
+    case OP_CONCAT:   return ";";
     case VAL_STRING:  return "STR";
     case VAL_INTEGER: return "INT";
     case VAL_FLOAT:   return "FLT";
@@ -82,11 +84,11 @@ const char* errmsg(int err)
 }
 
 //-----------------------------------------------------------------------------
-static void debugPrintPrettyExpr(const sSys* sys, idxType e)
+static int debugPrintPrettyExpr(const sSys* sys, idxType e)
 {
   sCodeIdx c;
   if (sys->getCode(&c, e) < 0)
-    return;
+    return 0;
 
   switch (c.code.op)
   {
@@ -117,6 +119,22 @@ static void debugPrintPrettyExpr(const sSys* sys, idxType e)
       debugPrintPrettyExpr(sys, c.code.expr.lhs);
       printf(")");
       break;
+    case OP_CONCAT:
+      debugPrintPrettyExpr(sys, c.code.expr.lhs);
+      {
+        sCodeIdx cr;
+        char ch;
+        sys->getCode(&cr, c.code.expr.rhs);
+        if (cr.code.op == VAL_STRING && cr.code.str.len == 1)
+        {
+          sys->getString(&ch, cr.code.str.start, cr.code.str.len);
+          if (ch == '\n')
+            return 1;
+        }
+      }
+      printf(";");
+      debugPrintPrettyExpr(sys, c.code.expr.rhs);
+      break;
     case VAL_STRING:
       {
         char str[MAX_STRING];
@@ -139,6 +157,7 @@ static void debugPrintPrettyExpr(const sSys* sys, idxType e)
     default:
       break;
   }
+  return 0;
 }
 
 //=============================================================================
@@ -181,7 +200,8 @@ void debugPrintRaw(const sSys* sys)
       case OP_MULT:
       case OP_DIV:
       case OP_IDIV:
-      case OP_POW:         printf("%3d: %3d %-2s %3d\n", i, c.code.expr.lhs, opStr(c.code.op), c.code.expr.rhs); break;
+      case OP_POW:
+      case OP_CONCAT:      printf("%3d: %3d %-2s %3d\n", i, c.code.expr.lhs, opStr(c.code.op), c.code.expr.rhs); break;
       case OP_NOT:
       case OP_SIGN:        printf("%3d: %s %3d\n", i, opStr(c.code.op), c.code.expr.lhs); break;
       case VAL_STRING:     printf("%3d: %-7s %3d %3d\n", i, opStr(c.code.op), c.code.str.start, c.code.str.len); break;
@@ -249,33 +269,35 @@ void debugPrintPretty(const sSys* sys)
     {
       case CMD_PRINT:
         printf("%-7s ", opStr(c.code.op));
-        debugPrintPrettyExpr(sys, c.code.cmd.expr);
-        printf("\n");
+        if (!debugPrintPrettyExpr(sys, c.code.cmd.expr))
+          putchar(';');
+        putchar('\n');
         break;
       case CMD_LET:
-      case CMD_SET:
-        printf("%-7s %c%d = ", opStr(c.code.op), (c.code.op == CMD_LET) ? 'V' : 'R', c.code.cmd.param);
+        printf("%-7s V%d = ", opStr(c.code.op), c.code.cmd.param);
         debugPrintPrettyExpr(sys, c.code.cmd.expr);
-        printf("\n");
+        putchar('\n');
+        break;
+      case CMD_SET:
+        printf("LET     %s = ", opStr(c.code.op), sys->regs[c.code.cmd.param].name);
+        debugPrintPrettyExpr(sys, c.code.cmd.expr);
+        putchar('\n');
         break;
       case CMD_IF:
         printf("%-7s NOT ", opStr(c.code.op));
         debugPrintPrettyExpr(sys, c.code.cmd.expr);
-        printf(" THEN GOTO L%03d", c.code.cmd.param);
-        printf("\n");
+        printf(" THEN GOTO L%03d\n", c.code.cmd.param);
         break;
       case CMD_GOTO:
       case CMD_GOSUB:
       case LNK_GOTO:
       case LNK_GOSUB:
-        printf("%-7s L%03d", opStr(c.code.op), c.code.cmd.param);
-        printf("\n");
+        printf("%-7s L%03d\n", opStr(c.code.op), c.code.cmd.param);
         break;
       case CMD_RETURN:
       case CMD_NOP:
       case CMD_END:
-        printf("%-7s", opStr(c.code.op));
-        printf("\n");
+        printf("%-7s\n", opStr(c.code.op));
         break;
       default:
         break;

@@ -105,20 +105,25 @@ static int printExpr(sSys* sys, idxType idx)
   sCodeIdx expr;
   CHECK(sys->getCode(&expr, idx));
 
-  if (expr.code.op == VAL_STRING)
+  if (expr.code.op == OP_CONCAT)
+  {
+    printExpr(sys, expr.code.expr.lhs);
+    printExpr(sys, expr.code.expr.rhs);
+  }
+  else if (expr.code.op == VAL_STRING)
   {
     char str[MAX_STRING];
     CHECK(sys->getString(str, expr.code.str.start, expr.code.str.len));
-    printf("%.*s\n", expr.code.str.len, str);
+    printf("%.*s", expr.code.str.len, str);
   }
   else
   {
     sCode value;
     CHECK(eval(sys, &value, idx));
     if (value.op == VAL_INTEGER)
-      printf("%d\n", value.iValue);
+      printf("%d", value.iValue);
     else if (value.op == VAL_FLOAT)
-      printf("%f\n", value.fValue);
+      printf("%f", value.fValue);
     else
       return ERR_EXEC_PRINT;
   }
@@ -238,6 +243,8 @@ int eval(sSys* sys, sCode* value, idxType idx)
       return getVar(value, expr.code.param);
     case VAL_REG:
       return getReg(sys, value, expr.code.param);
+    default:
+      return ERR_EXEC_OP_INV;
   }
 }
 

@@ -498,9 +498,23 @@ static int parsePrefix(int level)
 //-----------------------------------------------------------------------------
 static int parsePrint()
 {
-  CHECK(makeCodeExpr(CMD_PRINT, parseExpr(0)));
+  sCodeIdx code;
+  idxType  lhs, rhs;
+  CHECK(newCode(&code, CMD_PRINT));
+  CHECK(lhs = parseExpr(0));
+  while (strcon(";"))
+  {
+    if (strcon("\n"))
+    {
+      code.code.cmd.expr = lhs;
+      return sys->setCode(&code);
+    }
+    CHECK(lhs = makeExpr(OP_CONCAT, lhs, parseExpr(0)));
+  }
   ENSURE(strcon("\n"), ERR_NEWLINE);
-  return 0;
+  CHECK(lhs = makeExpr(OP_CONCAT, lhs, makeStr("\n", 1)));
+  code.code.cmd.expr = lhs;
+  return sys->setCode(&code);
 }
 
 //-----------------------------------------------------------------------------

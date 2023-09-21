@@ -12,8 +12,9 @@
 #define ERR_EXEC_REG_INV    -806  // Invalid register
 #define ERR_EXEC_REG_READ   -807  // Can't read register
 #define ERR_EXEC_REG_WRITE  -808  // Can't write register
-#define ERR_EXEC_STACK_UF   -809  // STack underflow
-#define ERR_EXEC_STACK_OF   -810  // STack overflow
+#define ERR_EXEC_STACK_UF   -809  // Stack underflow
+#define ERR_EXEC_STACK_OF   -810  // Stack overflow
+#define ERR_EXEC_OP_INV     -811  // Invalid operator
 
 //=============================================================================
 // Internal functions (optimizer)
