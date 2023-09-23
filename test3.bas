@@ -1,7 +1,7 @@
 REM String tests
 
-PRINT "Hallo";1+2;
-LET a = 1+2
-PRINT "all"
+Print "Hallo";1+2;
+LET a = not 1 and 2
+print "all"
 PRINT "oje";
 PRINT "xyz"

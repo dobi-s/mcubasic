@@ -11,6 +11,7 @@
 //=============================================================================
 // Defines
 //=============================================================================
+#define UPPER_CASE(x)  (((x) >= 'a' && (x) <= 'z') ? ((x) & 0xDF) : (x))
 #define parseExpr(l)   (parser[l](l))
 
 //=============================================================================
@@ -118,7 +119,7 @@ static int keycmp(const char* kw)
     return 0;
 
   int l = 0;
-  while (kw[l] && (s[l] == kw[l])) l++;
+  while (kw[l] && ((s[l] & 0xDF) == kw[l])) l++;
   return (kw[l] == '\0' && (s[l] == ' ' || s[l] == '\n')) ? l : 0;
 }
 
@@ -135,7 +136,7 @@ static int keycon(const char* kw)
 static int strcon(const char* str)
 {
   int l = 0;
-  while (str[l] && (s[l] == str[l])) l++;
+  while (str[l] && (UPPER_CASE(s[l]) == str[l])) l++;
   if (str[l])
     return 0;
   if (l > 0)
