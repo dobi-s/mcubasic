@@ -11,6 +11,8 @@
 //=============================================================================
 // Defines
 //=============================================================================
+#define READ_AHEAD_BUF_SIZE     (MAX_NAME + 2)
+
 #define UPPER_CASE(x)  (((x) >= 'a' && (x) <= 'z') ? ((x) & 0xDF) : (x))
 #define parseExpr(l)   (parser[l](l))
 
@@ -92,7 +94,7 @@ int lineCol = 1;
 //=============================================================================
 static void readChars(int cnt, bool skipSpace)
 {
-  static char buffer[MAX_NAME + 2];
+  static char buffer[READ_AHEAD_BUF_SIZE];
 
   if (!s)
   {
@@ -110,6 +112,53 @@ static void readChars(int cnt, bool skipSpace)
     buffer[sizeof(buffer)-1] = sys->getNextChar();
     putchar(*s);
   }
+}
+
+//-----------------------------------------------------------------------------
+static bool isKeyword(const char* str, int len)
+{
+  const struct
+  {
+    const char* name;
+    int len;
+  } keywords[] =
+  {
+    { "AND",    3 },
+    { "DO",     2 },
+    { "ELSE",   4 },
+    { "END",    3 },
+    { "ENDIF",  5 },
+    { "EOF",    3 },
+    { "FOR",    3 },
+    { "GOSUB",  5 },
+    { "GOTO",   4 },
+    { "IF",     2 },
+    { "LET",    3 },
+    { "LOOP",   4 },
+    { "MOD",    3 },
+    { "NEXT",   4 },
+    { "NOT",    3 },
+    { "OR",     2 },
+    { "PRINT",  5 },
+    { "REM",    3 },
+    { "RETURN", 6 },
+    { "STEP",   4 },
+    { "THEN",   4 },
+    { "TO",     2 },
+    { "UNTIL",  5 },
+    { "WHILE",  5 },
+  };
+
+  for (int i = 0; i < ARRAY_SIZE(keywords); i++)
+  {
+    if (len == keywords[i].len)
+    {
+      int j;
+      for (j = 0; j < len && keywords[i].name[j] == (str[j] & 0xDF); j++);
+      if (j == len) return true;
+    }
+  }
+  return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -145,6 +194,15 @@ static int strcon(const char* str)
 }
 
 //-----------------------------------------------------------------------------
+static int charcon(char c)
+{
+  if (c != *s)
+    return 0;
+  readChars(1, true);
+  return 1;
+}
+
+//-----------------------------------------------------------------------------
 static int namecon(const char** name)
 {
   static char buf[MAX_NAME];
@@ -162,6 +220,9 @@ static int namecon(const char** name)
   {
     l++;
   }
+
+  ENSURE (!isKeyword(s, l), ERR_NAME_KEYWORD);
+
   memcpy(buf, s, l);
   readChars(l, true);
   if (name)
@@ -170,7 +231,7 @@ static int namecon(const char** name)
 }
 
 //-----------------------------------------------------------------------------
-static int varIndex(const char* name, int len, bool add)
+static int varIndex(const char* name, int len)
 {
   int idx;
   for (idx = 0; idx < ARRAY_SIZE(varname); idx++)
@@ -181,7 +242,6 @@ static int varIndex(const char* name, int len, bool add)
   }
 
   // not found -> add
-  ENSURE(add, ERR_VAR_UNDEF);
   for (idx = 0; idx < ARRAY_SIZE(varname); idx++)
   {
     if (varname[idx][0] == '\0')
@@ -302,12 +362,12 @@ static int makeExpr(eOp op, int lhs, int rhs)
 }
 
 //-----------------------------------------------------------------------------
-static int makeVar(const char* name, int len, bool add)
+static int makeVar(const char* name, int len)
 {
   sCode code =
   {
     .op    = VAL_VAR,
-    .param = varIndex(name, len, add)
+    .param = varIndex(name, len)
   };
   CHECK(code.param);
   return sys->addCode(&code);
@@ -361,13 +421,13 @@ static int makeInt(int value)
 }
 
 //-----------------------------------------------------------------------------
-static int parseVar(bool add)
+static int parseVar(void)
 {
   const char* name;
   int         len;
   ENSURE(*s != '$', ERR_VAR_NAME);
   CHECK(len = namecon(&name));
-  return makeVar(name, len, add);
+  return makeVar(name, len);
 }
 
 //-----------------------------------------------------------------------------
@@ -407,11 +467,11 @@ static int parseVal(int level)
   }
 
   // Bracket
-  if (strcon("("))
+  if (charcon('('))
   {
     int a;
     CHECK(a = parseExpr(0));
-    ENSURE(strcon(")"), ERR_EXPR_BRACKETS);
+    ENSURE(charcon(')'), ERR_EXPR_BRACKETS);
     return a;
   }
 
@@ -447,7 +507,7 @@ static int parseVal(int level)
     return parseReg();
 
   // Variables
-  return parseVar(false);
+  return parseVar();
 }
 
 //-----------------------------------------------------------------------------
@@ -503,16 +563,16 @@ static int parsePrint()
   idxType  lhs, rhs;
   CHECK(newCode(&code, CMD_PRINT));
   CHECK(lhs = parseExpr(0));
-  while (strcon(";"))
+  while (charcon(';'))
   {
-    if (strcon("\n"))
+    if (charcon('\n'))
     {
       code.code.cmd.expr = lhs;
       return sys->setCode(&code);
     }
     CHECK(lhs = makeExpr(OP_CONCAT, lhs, parseExpr(0)));
   }
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
   CHECK(lhs = makeExpr(OP_CONCAT, lhs, makeStr("\n", 1)));
   code.code.cmd.expr = lhs;
   return sys->setCode(&code);
@@ -521,12 +581,12 @@ static int parsePrint()
 //-----------------------------------------------------------------------------
 static int parseAssign(const char* name, int len)
 {
-  ENSURE(strcon("="), ERR_ASSIGN);
+  ENSURE(charcon('='), ERR_ASSIGN);
   if (name[0] == '$')
     CHECK(makeCodeExprParam(CMD_SET, parseExpr(0), regIndex(name, len)));
   else
-    CHECK(makeCodeExprParam(CMD_LET, parseExpr(0), varIndex(name, len, true)));
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+    CHECK(makeCodeExprParam(CMD_LET, parseExpr(0), varIndex(name, len)));
+  ENSURE(charcon('\n'), ERR_NEWLINE);
   return 0;
 }
 
@@ -537,7 +597,7 @@ static int parseGoto(eOp op)
   int len;
   CHECK(len = namecon(&name));
   CHECK(makeCodeExprParam(op, 0, lblIndex(name, len, -1)));
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
   return 0;
 }
 
@@ -545,7 +605,7 @@ static int parseGoto(eOp op)
 static int parseReturn()
 {
   CHECK(makeCode(CMD_RETURN));
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
   return 0;
 }
 
@@ -557,13 +617,13 @@ static int parseIf()
   CHECK(newCode(&cond, CMD_IF));
   CHECK(cond.code.cmd.expr = parseExpr(0));
   ENSURE(keycon("THEN"), ERR_IF_THEN);
-  if (strcon("\n"))  // multi line IF
+  if (charcon('\n'))  // multi line IF
   {
     CHECK(parseBlock());
     if (keycon("ELSE"))
     {
       sCodeIdx eob;
-      ENSURE(strcon("\n"), ERR_NEWLINE);
+      ENSURE(charcon('\n'), ERR_NEWLINE);
       CHECK(newCode(&eob, CMD_GOTO));
       cond.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
       CHECK(parseBlock());
@@ -575,7 +635,7 @@ static int parseIf()
       cond.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
     }
     ENSURE(keycon("ENDIF"), ERR_IF_ENDIF);
-    ENSURE(strcon("\n"), ERR_NEWLINE);
+    ENSURE(charcon('\n'), ERR_NEWLINE);
   }
   else  // single line IF (no ELSE allowed)
   {
@@ -602,7 +662,7 @@ static int parseDo()
     CHECK(newCode(&top, CMD_IF));
     CHECK(top.code.cmd.expr = makeExpr(OP_NOT, parseExpr(0), 0));
   }
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
 
   CHECK(parseBlock());
   ENSURE(keycon("LOOP"), ERR_DO_LOOP);
@@ -613,7 +673,7 @@ static int parseDo()
     CHECK(makeCodeExprParam(CMD_IF, makeExpr(OP_NOT, parseExpr(0), 0), hdr));
   else
     CHECK(makeCodeExprParam(CMD_GOTO, 0, hdr));
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
   if (top.idx != -1)
   {
     top.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
@@ -628,21 +688,21 @@ static int parseFor()
   int varExpr, varIdx, step;
   sCodeIdx code;
 
-  CHECK(varExpr = parseVar(true));
+  CHECK(varExpr = parseVar());
   CHECK(sys->getCode(&code, varExpr));
   varIdx = code.code.param;
-  ENSURE(strcon("="), ERR_ASSIGN);
+  ENSURE(charcon('='), ERR_ASSIGN);
   CHECK(makeCodeExprParam(CMD_LET, parseExpr(0), varIdx));
   ENSURE(keycon("TO"), ERR_FOR_TO);
   CHECK(newCode(&code, CMD_IF));
   CHECK(code.code.cmd.expr = makeExpr(OP_LTEQ, varExpr, parseExpr(0)));
   CHECK(step = keycon("STEP") ? parseExpr(0) : makeInt(1));
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
 
   CHECK(parseBlock());
 
   ENSURE(keycon("NEXT"), ERR_FOR_NEXT);
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
   CHECK(makeCodeExprParam(CMD_LET, makeExpr(OP_PLUS, varExpr, step), varIdx));
   CHECK(makeCodeExprParam(CMD_GOTO, 0, code.idx));
   code.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
@@ -654,7 +714,7 @@ static int parseFor()
 static int parseRem()
 {
   while (*s != '\n') readChars(1, true);
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
   return 0;
 }
 
@@ -662,7 +722,7 @@ static int parseRem()
 static int parseEnd()
 {
   CHECK(makeCode(CMD_END));
-  ENSURE(strcon("\n"), ERR_NEWLINE);
+  ENSURE(charcon('\n'), ERR_NEWLINE);
   return 0;
 }
 
@@ -670,7 +730,7 @@ static int parseEnd()
 static int parseLabel(const char* name, int len)
 {
   CHECK(lblIndex(name, len, sys->getCode(NULL, NEXT_CODE_IDX)));
-  if (!strcon("\n"));
+  if (!charcon('\n'));
   return parseStmt();
 }
 
@@ -680,7 +740,7 @@ static int parseStmt(void)
   const char* name;
   int len;
 
-  while (strcon("\n"));
+  while (charcon('\n'));
 
   if (keycon("PRINT"))
     return parsePrint();
@@ -708,7 +768,7 @@ static int parseStmt(void)
 
   // Commands without keyword
   CHECK(len = namecon(&name));
-  if (strcon(":"))  // Label
+  if (charcon(':'))  // Label
     return parseLabel(name, len);
   return parseAssign(name, len);
 }
@@ -718,7 +778,7 @@ static int parseBlock(void)
 {
   while (1)
   {
-    if (strcon("\n"))
+    if (charcon('\n'))
       continue; // Skip empty lines
 
     if (keycmp("ELSE") ||
@@ -748,6 +808,10 @@ int parseAll(const sSys* system, int* errline, int* errcol)
       ((err = (keycon("EOF") ? 0 : ERR_EOF)) >= 0) &&
       ((err = makeCode(CMD_END)            ) >= 0))
     return 0;
+
+  for (int i = 1; i < READ_AHEAD_BUF_SIZE && s[i] != '\n'; i++)
+    putchar(s[i]);
+  putchar('\n');
 
   if (errline)
     *errline = lineNum;

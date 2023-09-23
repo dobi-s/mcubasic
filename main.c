@@ -50,7 +50,8 @@ static char getNextChar(void)
 //-----------------------------------------------------------------------------
 static int showError(int err, int line, int col)
 {
-  printf("ERROR %d (%s) in Line %d, Col %d\n", err, errmsg(err), line, col);
+  printf("%*s\n", col, "^");
+  printf("ERROR %d in Line %d, Col %d: %s\n", err, line, col, errmsg(err));
   return err;
 }
 

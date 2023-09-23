@@ -10,29 +10,29 @@ static const char* opStr(eOp op)
 {
   switch (op)
   {
-    case CMD_PRINT:   return "PRINT";
-    case CMD_LET:     return "LET";
-    case CMD_SET:     return "SET";
-    case CMD_IF:      return "IF";
-    case CMD_GOTO:    return "GOTO";
-    case CMD_GOSUB:   return "GOSUB";
-    case CMD_RETURN:  return "RETURN";
-    case CMD_NOP:     return "NOP";
-    case CMD_END:     return "END";
-    case LNK_GOTO:    return "GOTO*";
-    case LNK_GOSUB:   return "GOSUB*";
+    case CMD_PRINT:   return "Print";
+    case CMD_LET:     return "Let";
+    case CMD_SET:     return "Set";
+    case CMD_IF:      return "If";
+    case CMD_GOTO:    return "GoTo";
+    case CMD_GOSUB:   return "GoSub";
+    case CMD_RETURN:  return "Return";
+    case CMD_NOP:     return "Nop";
+    case CMD_END:     return "End";
+    case LNK_GOTO:    return "GoTo*";
+    case LNK_GOSUB:   return "GoSub*";
     case OP_NEQ:      return "<>";
     case OP_LTEQ:     return "<=";
     case OP_GTEQ:     return ">=";
     case OP_LT:       return "<";
     case OP_GT:       return ">";
     case OP_EQUAL:    return "=";
-    case OP_OR:       return "OR";
-    case OP_AND:      return "AND";
-    case OP_NOT:      return "NOT ";
+    case OP_OR:       return "Or";
+    case OP_AND:      return "And";
+    case OP_NOT:      return "Not ";
     case OP_PLUS:     return "+";
     case OP_MINUS:    return "-";
-    case OP_MOD:      return "MOD";
+    case OP_MOD:      return "Mod";
     case OP_MULT:     return "*";
     case OP_DIV:      return "/";
     case OP_IDIV:     return "\\";
@@ -54,6 +54,7 @@ const char* errmsg(int err)
   switch (err)
   {
     case ERR_NAME_INV:      return "Invalid name";
+    case ERR_NAME_KEYWORD:  return "Keyword not allowed as name";
     case ERR_MEM_CODE:      return "Not enough code memory";
     case ERR_VAR_UNDEF:     return "Variable undefined";
     case ERR_VAR_COUNT:     return "Too many variables";
