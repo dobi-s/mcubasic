@@ -7,61 +7,55 @@
 // Defines
 //=============================================================================
 #define NEW_CODE        -1
-#define NEW_DATA        -2
-#define NEXT_CODE_IDX   -3
-#define NEXT_DATA_IDX   -4
+#define NEXT_CODE_IDX   -2
 
 //=============================================================================
 // Typedefs
 //=============================================================================
 typedef enum
-{                   // Code    Linker    Data
-  CMD_INVALID = 0,  //  X
-  CMD_PRINT,        //  X
-  CMD_LET,          //  X
-  CMD_SET,          //  X
-  CMD_IF,           //  X
-  CMD_GOTO,         //  X
-  CMD_GOSUB,        //  X
-  CMD_RETURN,       //  X
-  CMD_NOP,          //  X
-  CMD_END,          //  X
-  LNK_GOTO,         //          X
-  LNK_GOSUB,        //          X
-  OP_NEQ,           //                    X
-  OP_LTEQ,          //                    X
-  OP_GTEQ,          //                    X
-  OP_LT,            //                    X
-  OP_GT,            //                    X
-  OP_EQUAL,         //                    X
-  OP_OR,            //                    X
-  OP_AND,           //                    X
-  OP_NOT,           //                    X
-  OP_PLUS,          //                    X
-  OP_MINUS,         //                    X
-  OP_MOD,           //                    X
-  OP_MULT,          //                    X
-  OP_DIV,           //                    X
-  OP_IDIV,          //                    X
-  OP_POW,           //                    X
-  OP_SIGN,          //                    X
-  OP_CONCAT,        //                    X
-  VAL_STRING,       //                    X
-  VAL_INTEGER,      //                    X
-  VAL_FLOAT,        //                    X
-  VAL_VAR,          //                    X
-  VAL_REG,          //                    X
-
-  CODE_START = CMD_PRINT,
-  CODE_END   = LNK_GOSUB,
-  DATA_START = OP_NEQ,
-  DATA_END   = VAL_REG,
+{                   // Code    Linker    Arg     Stack
+  CMD_INVALID = 0,  //  X                -       -
+  CMD_PRINT,        //  X                <cnt>   -1-<cnt>
+  CMD_LET,          //  X                <var>   -1
+  CMD_SET,          //  X                <reg>   -1
+  CMD_IF,           //  X                <lbl>   -1
+  CMD_GOTO,         //  X                <lbl>   -
+  LNK_GOTO,         //          X        <lbl>   -
+  CMD_GOSUB,        //  X                <lbl>   -
+  LNK_GOSUB,        //          X        <lbl>   -
+  CMD_RETURN,       //  X                <cnt>   -1-<cnt>
+  CMD_POP,          //  X                -       -1
+  CMD_NOP,          //  X                -       -
+  CMD_END,          //  X                -       -
+  OP_NEQ,           //  X                -       -2+1
+  OP_LTEQ,          //  X                -       -2+1
+  OP_GTEQ,          //  X                -       -2+1
+  OP_LT,            //  X                -       -2+1
+  OP_GT,            //  X                -       -2+1
+  OP_EQUAL,         //  X                -       -2+1
+  OP_OR,            //  X                -       -2+1
+  OP_AND,           //  X                -       -2+1
+  OP_NOT,           //  X                -       -1+1
+  OP_PLUS,          //  X                -       -2+1
+  OP_MINUS,         //  X                -       -2+1
+  OP_MOD,           //  X                -       -2+1
+  OP_MULT,          //  X                -       -2+1
+  OP_DIV,           //  X                -       -2+1
+  OP_IDIV,          //  X                -       -2+1
+  OP_POW,           //  X                -       -2+1
+  OP_SIGN,          //  X                -       -1+1
+  VAL_STRING,       //  X                <str>   +1
+  VAL_INTEGER,      //  X                <int>   +1
+  VAL_FLOAT,        //  X                <float> +1
+  VAL_VAR,          //  X                <var>   +1
+  VAL_REG,          //  X                <reg>   +1
+  VAL_LABEL,        //                   <lbl>
 } eOp;
 
 //-----------------------------------------------------------------------------
 typedef int32_t   iType;      // Integer value
 typedef float     fType;      // Float value
-typedef int16_t   idxType;    // Code/data/var/reg/str index
+typedef int16_t   idxType;    // Code/var/reg/str index
 typedef int16_t   sLenType;   // String length
 
 //-----------------------------------------------------------------------------
@@ -72,22 +66,12 @@ typedef struct sCode
   {
     iType       iValue;
     fType       fValue;
-    idxType     param;    // var (VAR), reg (REG)
-    struct
-    {
-      idxType   lhs;
-      idxType   rhs;
-    } expr;
+    idxType     param;    // var (VAR, LET), reg (REG, SET), lbl (IF, GOTO, GOSUB)
     struct
     {
       idxType   start;
       sLenType  len;
     } str;
-    struct
-    {
-      idxType   expr;     // LET, SET, PRINT: expr; IF: condition
-      idxType   param;    // var (LET), reg (SET), false branch (IF), label (GOTO,GOSUB)
-    } cmd;
   };
 } sCode;
 
@@ -117,6 +101,6 @@ typedef struct
   int  (*setCode)(const sCodeIdx* code);
   int  (*getCode)(sCodeIdx* code, int idx);
   int  (*setString)(const char* str, unsigned int len);
-  int  (*getString)(char* str, int start, unsigned int len);
+  int  (*getString)(const char** str, int start, unsigned int len);
   sReg regs[MAX_REG_NUM];
 } sSys;

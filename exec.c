@@ -14,7 +14,7 @@
 //=============================================================================
 // Private variables
 //=============================================================================
-static idxType stack[STACK_SIZE];
+static sCode stack[STACK_SIZE];
 static idxType sp = 0;
 
 sCode  var[MAX_VAR_NUM];
@@ -52,18 +52,40 @@ static fType castFloat(sCode* value)
 }
 
 //-----------------------------------------------------------------------------
-static inline int makeInt(sCode* var, iType value)
+static inline int pushInt(iType value)
 {
-  var->op     = VAL_INTEGER;
-  var->iValue = value;
+  ENSURE(sp < ARRAY_SIZE(stack), ERR_EXEC_STACK_OF);
+  stack[sp].op     = VAL_INTEGER;
+  stack[sp].iValue = value;
+  sp++;
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-static inline int makeFloat(sCode* var, fType value)
+static inline int pushFloat(fType value)
 {
-  var->op     = VAL_FLOAT;
-  var->fValue = value;
+  ENSURE(sp < ARRAY_SIZE(stack), ERR_EXEC_STACK_OF);
+  stack[sp].op     = VAL_FLOAT;
+  stack[sp].fValue = value;
+  sp++;
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static inline int pushLabel(idxType idx)
+{
+  ENSURE(sp < ARRAY_SIZE(stack), ERR_EXEC_STACK_OF);
+  stack[sp].op    = VAL_LABEL;
+  stack[sp].param = idx;
+  sp++;
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static inline int pushCode(sCode* code)
+{
+  ENSURE(sp < ARRAY_SIZE(stack), ERR_EXEC_STACK_OF);
+  memcpy(&stack[sp++], code, sizeof(sCode));
   return 0;
 }
 
@@ -100,155 +122,46 @@ static int setReg(sSys* sys, idxType idx, sCode* value)
 }
 
 //-----------------------------------------------------------------------------
-static int printExpr(sSys* sys, idxType idx)
+static int print(sSys* sys, idxType cnt)
 {
-  sCodeIdx expr;
-  CHECK(sys->getCode(&expr, idx));
+  const char* str;
 
-  if (expr.code.op == OP_CONCAT)
+  ENSURE(sp > cnt, ERR_EXEC_STACK_UF);
+  sp -= cnt + 1;
+
+  for (int i = 0; i <= cnt; i++)
   {
-    printExpr(sys, expr.code.expr.lhs);
-    printExpr(sys, expr.code.expr.rhs);
-  }
-  else if (expr.code.op == VAL_STRING)
-  {
-    char str[MAX_STRING];
-    CHECK(sys->getString(str, expr.code.str.start, expr.code.str.len));
-    printf("%.*s", expr.code.str.len, str);
-  }
-  else
-  {
-    sCode value;
-    CHECK(eval(sys, &value, idx));
-    if (value.op == VAL_INTEGER)
-      printf("%d", value.iValue);
-    else if (value.op == VAL_FLOAT)
-      printf("%f", value.fValue);
-    else
-      return ERR_EXEC_PRINT;
+    switch (stack[sp + i].op)
+    {
+      case VAL_INTEGER:
+        printf("%d", stack[sp + i].iValue);
+        break;
+      case VAL_FLOAT:
+        printf("%f", stack[sp + i].fValue);
+        break;
+      case VAL_STRING:
+        CHECK(sys->getString(&str, stack[sp + i].str.start, stack[sp + i].str.len));
+        printf("%.*s", stack[sp + i].str.len, str);
+        break;
+      default:
+        printf("(%d)\n", stack[sp + i].op);
+        return ERR_EXEC_PRINT;
+    }
   }
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-static int push(idxType value)
+static int returnSub(idxType cnt)
 {
-  ENSURE(sp < STACK_SIZE, ERR_EXEC_STACK_OF);
-  stack[sp++] = value;
-  return 0;
-}
-
-//-----------------------------------------------------------------------------
-static int pop(void)
-{
-  ENSURE(sp > 0, ERR_EXEC_STACK_UF);
-  return stack[--sp];
+  ENSURE(sp-- > 0, ERR_EXEC_STACK_UF);
+  ENSURE(stack[sp].op == VAL_LABEL, ERR_EXEC_CMD_INV);
+  return stack[sp].param;
 }
 
 //=============================================================================
 // Public functions
 //=============================================================================
-int eval(sSys* sys, sCode* value, idxType idx)
-{
-  sCodeIdx expr;
-  sCode lhs;
-  sCode rhs;
-  CHECK(sys->getCode(&expr, idx));
-
-  switch (expr.code.op)
-  {
-    case OP_NEQ:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, (IS_INT(lhs) && IS_INT(rhs)) ? (lhs.iValue != rhs.iValue) : (castFloat(&lhs) != castFloat(&rhs)));
-    case OP_LTEQ:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, (IS_INT(lhs) && IS_INT(rhs)) ? (lhs.iValue <= rhs.iValue) : (castFloat(&lhs) <= castFloat(&rhs)));
-    case OP_GTEQ:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, (IS_INT(lhs) && IS_INT(rhs)) ? (lhs.iValue >= rhs.iValue) : (castFloat(&lhs) >= castFloat(&rhs)));
-    case OP_LT:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, (IS_INT(lhs) && IS_INT(rhs)) ? (lhs.iValue <  rhs.iValue) : (castFloat(&lhs) <  castFloat(&rhs)));
-    case OP_GT:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, (IS_INT(lhs) && IS_INT(rhs)) ? (lhs.iValue >  rhs.iValue) : (castFloat(&lhs) >  castFloat(&rhs)));
-    case OP_EQUAL:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, (IS_INT(lhs) && IS_INT(rhs)) ? (lhs.iValue == rhs.iValue) : (castFloat(&lhs) == castFloat(&rhs)));
-    case OP_OR:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, castBool(&lhs) || castBool(&rhs));
-    case OP_AND:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, castBool(&lhs) && castBool(&rhs));
-    case OP_NOT:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      return makeInt(value, !castBool(&lhs));
-    case OP_PLUS:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      if (IS_INT(lhs) && IS_INT(rhs))
-        return makeInt(value, lhs.iValue + rhs.iValue);
-      return makeFloat(value, castFloat(&lhs) + castFloat(&rhs));
-    case OP_MINUS:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      if (IS_INT(lhs) && IS_INT(rhs))
-        return makeInt(value, lhs.iValue - rhs.iValue);
-      return makeFloat(value, castFloat(&lhs) - castFloat(&rhs));
-    case OP_MOD:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      return makeInt(value, castInt(&lhs) % castInt(&rhs));
-    case OP_MULT:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      if (IS_INT(lhs) && IS_INT(rhs))
-        return makeInt(value, lhs.iValue * rhs.iValue);
-      return makeFloat(value, castFloat(&lhs) * castFloat(&rhs));
-    case OP_DIV:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      ENSURE(castFloat(&rhs) != 0.0f, ERR_EXEC_DIV_ZERO);
-      return makeFloat(value, castFloat(&lhs) / castFloat(&rhs));
-    case OP_IDIV:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      ENSURE(castInt(&rhs) != 0, ERR_EXEC_DIV_ZERO);
-      return makeInt(value, castInt(&lhs) / castInt(&rhs));
-    case OP_POW:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      CHECK(eval(sys, &rhs, expr.code.expr.rhs));
-      if (IS_INT(lhs) && IS_INT(rhs) && rhs.iValue >= 0)
-        return makeInt(value, powf(lhs.iValue, rhs.iValue));
-      return makeFloat(value, powf(castFloat(&lhs), castFloat(&rhs)));
-    case OP_SIGN:
-      CHECK(eval(sys, &lhs, expr.code.expr.lhs));
-      if (IS_INT(lhs))
-        return makeInt(value, -lhs.iValue);
-      return makeFloat(value, -castFloat(&lhs));
-    case VAL_INTEGER:
-      return makeInt(value, expr.code.iValue);
-    case VAL_FLOAT:
-      return makeFloat(value, expr.code.fValue);
-    case VAL_VAR:
-      return getVar(value, expr.code.param);
-    case VAL_REG:
-      return getReg(sys, value, expr.code.param);
-    default:
-      return ERR_EXEC_OP_INV;
-  }
-}
-
-//-----------------------------------------------------------------------------
 int exec_init(void)
 {
   for (int i = 0; i < MAX_VAR_NUM; i++)
@@ -264,37 +177,151 @@ int exec(sSys* sys, idxType pc)
 {
   sCodeIdx code;
   sCode value;
+  iType iValue;
+  fType fValue;
 
   ENSURE(pc >= 0, ERR_EXEC_PC);
   CHECK(sys->getCode(&code, pc));
 
+  extern void debugState(sCodeIdx* code, sCode* stack, idxType sp);
+  // debugState(&code, stack, sp);
+
   switch (code.code.op)
   {
     case CMD_PRINT:
-      CHECK(printExpr(sys, code.code.cmd.expr));
+      CHECK(print(sys, code.code.param));
       return pc + 1;
     case CMD_LET:
-      CHECK(eval(sys, &value, code.code.cmd.expr));
-      CHECK(setVar(code.code.cmd.param, &value));
+      ENSURE(sp > 0, ERR_EXEC_STACK_UF);
+      CHECK(setVar(code.code.param, &stack[--sp]));
       return pc + 1;
     case CMD_SET:
-      CHECK(eval(sys, &value, code.code.cmd.expr));
-      CHECK(setReg(sys, code.code.cmd.param, &value));
+      ENSURE(sp > 0, ERR_EXEC_STACK_UF);
+      CHECK(setReg(sys, code.code.param, &stack[--sp]));
       return pc + 1;
     case CMD_IF:
-      CHECK(eval(sys, &value, code.code.cmd.expr));
-      return (castBool(&value)) ? pc + 1 : code.code.cmd.param;
+      ENSURE(sp > 0, ERR_EXEC_STACK_UF);
+      return (castBool(&stack[--sp])) ? pc + 1 : code.code.param;
     case CMD_GOTO:
-      return code.code.cmd.param;
+      return code.code.param;
     case CMD_GOSUB:
-      CHECK(push(pc + 1));
-      return code.code.cmd.param;
+      CHECK(pushLabel(pc + 1));
+      return code.code.param;
     case CMD_RETURN:
-      return pop();
+      return returnSub(code.code.param);
+    case CMD_POP:
+      ENSURE(sp-- > 0, ERR_EXEC_STACK_UF);
+      return pc + 1;
     case CMD_NOP:
       return pc + 1;
     case CMD_END:
       return ERR_EXEC_END;
+    case OP_NEQ:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? (stack[sp].iValue      != stack[sp+1].iValue)
+          : (castFloat(&stack[sp]) != castFloat(&stack[sp+1]))));
+      return pc + 1;
+    case OP_LTEQ:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? (stack[sp].iValue      <= stack[sp+1].iValue)
+          : (castFloat(&stack[sp]) <= castFloat(&stack[sp+1]))));
+      return pc + 1;
+    case OP_GTEQ:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? (stack[sp].iValue      >= stack[sp+1].iValue)
+          : (castFloat(&stack[sp]) >= castFloat(&stack[sp+1]))));
+      return pc + 1;
+    case OP_LT:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? (stack[sp].iValue      < stack[sp+1].iValue)
+          : (castFloat(&stack[sp]) < castFloat(&stack[sp+1]))));
+      return pc + 1;
+    case OP_GT:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? (stack[sp].iValue      > stack[sp+1].iValue)
+          : (castFloat(&stack[sp]) > castFloat(&stack[sp+1]))));
+      return pc + 1;
+    case OP_EQUAL:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? (stack[sp].iValue      == stack[sp+1].iValue)
+          : (castFloat(&stack[sp]) == castFloat(&stack[sp+1]))));
+      return pc + 1;
+    case OP_OR:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt(castBool(&stack[sp]) || castBool(&stack[sp+1])));
+      return pc + 1;
+    case OP_AND:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt(castBool(&stack[sp]) && castBool(&stack[sp+1])));
+      return pc + 1;
+    case OP_NOT:
+      ENSURE(sp >= 1, ERR_EXEC_STACK_UF); sp -= 1;
+      CHECK(pushInt(!castBool(&stack[sp])));
+      return pc + 1;
+    case OP_PLUS:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? pushInt(stack[sp].iValue        + stack[sp+1].iValue)
+          : pushFloat(castFloat(&stack[sp]) + castFloat(&stack[sp+1])));
+      return pc + 1;
+    case OP_MINUS:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? pushInt(stack[sp].iValue        - stack[sp+1].iValue)
+          : pushFloat(castFloat(&stack[sp]) - castFloat(&stack[sp+1])));
+      return pc + 1;
+    case OP_MOD:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK((pushInt(castInt(&stack[sp]) % castInt(&stack[sp+1]))));
+      return pc + 1;
+    case OP_MULT:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? pushInt(stack[sp].iValue        * stack[sp+1].iValue)
+          : pushFloat(castFloat(&stack[sp]) * castFloat(&stack[sp+1])));
+      return pc + 1;
+    case OP_DIV:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      ENSURE(castFloat(&stack[sp+1]) != 0.0f, ERR_EXEC_DIV_ZERO);
+      CHECK(pushFloat(castFloat(&stack[sp]) / castFloat(&stack[sp+1])));
+      return pc + 1;
+    case OP_IDIV:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      ENSURE(castInt(&stack[sp+1]) != 0, ERR_EXEC_DIV_ZERO);
+      CHECK(pushInt(castInt(&stack[sp]) / castInt(&stack[sp+1])));
+      return pc + 1;
+    case OP_POW:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+          ? pushInt(powf(stack[sp].iValue, stack[sp+1].iValue) + 0.5f)
+          : pushFloat(powf(castFloat(&stack[sp]), castFloat(&stack[sp+1]))));
+      return pc + 1;
+    case OP_SIGN:
+      ENSURE(sp >= 1, ERR_EXEC_STACK_UF); sp -= 1;
+      CHECK(IS_INT(stack[sp])
+          ? pushInt(-stack[sp].iValue)
+          : pushFloat(-stack[sp].fValue));
+      return pc + 1;
+    case VAL_STRING:
+    case VAL_INTEGER:
+    case VAL_FLOAT:
+      CHECK(pushCode(&code.code));
+      return pc + 1;
+    case VAL_VAR:
+      CHECK(getVar(&value, code.code.param));
+      CHECK(pushCode(&value));
+      return pc + 1;
+    case VAL_REG:
+      CHECK(getReg(sys, &value, code.code.param));
+      CHECK(pushCode(&value));
+      return pc + 1;
+
     default:
       return ERR_EXEC_CMD_INV;
   }

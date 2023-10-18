@@ -88,7 +88,6 @@ static const char* s = NULL;
 int lineNum = 1;
 int lineCol = 1;
 
-
 //=============================================================================
 // Private functions
 //=============================================================================
@@ -311,82 +310,19 @@ static int newCode(sCodeIdx* code, eOp op)
 }
 
 //-----------------------------------------------------------------------------
-static int makeCode(eOp op)
+static int addCode(eOp op, int param)
 {
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_CODE));
-  code.code.op = op;
-  CHECK(sys->setCode(&code));
-  return code.idx;
-}
-
-//-----------------------------------------------------------------------------
-static int makeCodeExpr(eOp op, int expr)
-{
-  sCodeIdx code;
-  CHECK(sys->getCode(&code, NEW_CODE));
-  code.code.op = op;
-  CHECK(code.code.cmd.expr = expr);
-  CHECK(sys->setCode(&code));
-  return code.idx;
-}
-
-//-----------------------------------------------------------------------------
-static int makeCodeExprParam(eOp op, int expr, int param)
-{
-  CHECK(expr);
+  sCode code =
+  {
+    .op    = op,
+    .param = param
+  };
   CHECK(param);
-
-  sCode code =
-  {
-    .op        = op,
-    .cmd.expr  = expr,
-    .cmd.param = param
-  };
   return sys->addCode(&code);
 }
 
 //-----------------------------------------------------------------------------
-static int makeExpr(eOp op, int lhs, int rhs)
-{
-  CHECK(lhs);
-  CHECK(rhs);
-
-  sCode code =
-  {
-    .op       = op,
-    .expr.lhs = lhs,
-    .expr.rhs = rhs
-  };
-  return sys->addCode(&code);
-}
-
-//-----------------------------------------------------------------------------
-static int makeVar(const char* name, int len)
-{
-  sCode code =
-  {
-    .op    = VAL_VAR,
-    .param = varIndex(name, len)
-  };
-  CHECK(code.param);
-  return sys->addCode(&code);
-}
-
-//-----------------------------------------------------------------------------
-static int makeReg(const char* name, int len)
-{
-  sCode code =
-  {
-    .op    = VAL_REG,
-    .param = regIndex(name, len)
-  };
-  CHECK(code.param);
-  return sys->addCode(&code);
-}
-
-//-----------------------------------------------------------------------------
-static int makeStr(const char* str, sLenType len)
+static int addStr(const char* str, sLenType len)
 {
   sCode code =
   {
@@ -399,7 +335,7 @@ static int makeStr(const char* str, sLenType len)
 }
 
 //-----------------------------------------------------------------------------
-static int makeFloat(float value)
+static int addFloat(float value)
 {
   sCode code =
   {
@@ -410,7 +346,7 @@ static int makeFloat(float value)
 }
 
 //-----------------------------------------------------------------------------
-static int makeInt(int value)
+static int addInt(int value)
 {
   sCode code =
   {
@@ -427,7 +363,7 @@ static int parseVar(void)
   int         len;
   ENSURE(*s != '$', ERR_VAR_NAME);
   CHECK(len = namecon(&name));
-  return makeVar(name, len);
+  return varIndex(name, len);
 }
 
 //-----------------------------------------------------------------------------
@@ -437,7 +373,7 @@ static int parseReg()
   int         len;
   ENSURE(*s == '$', ERR_REG_NAME);
   CHECK(len = namecon(&name));
-  return makeReg(name, len);
+  return regIndex(name, len);
 }
 
 //-----------------------------------------------------------------------------
@@ -463,16 +399,15 @@ static int parseVal(int level)
       readChars(1, false);
     }
     readChars(1, true);
-    return makeStr(str, len);
+    return addStr(str, len);
   }
 
   // Bracket
   if (charcon('('))
   {
-    int a;
-    CHECK(a = parseExpr(0));
+    CHECK(parseExpr(0));
     ENSURE(charcon(')'), ERR_EXPR_BRACKETS);
-    return a;
+    return 0;
   }
 
   // Hex
@@ -483,7 +418,7 @@ static int parseVal(int level)
     int res = strtoul(s, &end, 16);
     ENSURE(end > s, ERR_NUM_INV);
     readChars(end-s, true);
-    return makeInt(res);
+    return addInt(res);
   }
 
   // Decimal
@@ -496,27 +431,26 @@ static int parseVal(int level)
     {
       float val = strtof(s, &end);
       readChars(end-s, true);
-      return makeFloat(val);
+      return addFloat(val);
     }
     readChars(end-s, true);
-    return makeInt(res);
+    return addInt(res);
   }
 
   // Registers
   if (*s == '$')
-    return parseReg();
+    return addCode(VAL_REG, parseReg());
 
   // Variables
-  return parseVar();
+  return addCode(VAL_VAR, parseVar());
 }
 
 //-----------------------------------------------------------------------------
 static int parseDual(int level)
 {
   int op;
-  int a;
 
-  CHECK(a = parseExpr(level+1));
+  CHECK(parseExpr(level+1));
 
   while (1)
   {
@@ -530,9 +464,10 @@ static int parseDual(int level)
         break;
     }
     if (op >= ARRAY_SIZE(operators))
-      return a;
+      return 0;
 
-    a = makeExpr(operators[op].operator, a, parseExpr(level+1));
+    CHECK(parseExpr(level+1));
+    addCode(operators[op].operator, 0);
   }
 }
 
@@ -540,7 +475,6 @@ static int parseDual(int level)
 static int parsePrefix(int level)
 {
   int op;
-  int a;
 
   for (op = 0; op < ARRAY_SIZE(operators); op++)
   {
@@ -553,41 +487,36 @@ static int parsePrefix(int level)
   if (op >= ARRAY_SIZE(operators))
     return parseExpr(level+1);
 
-  return makeExpr(operators[op].operator, parseExpr(level), 0);
+  CHECK(parseExpr(level));
+  return addCode(operators[op].operator, 0);
 }
 
 //-----------------------------------------------------------------------------
 static int parsePrint()
 {
-  sCodeIdx code;
-  idxType  lhs, rhs;
-  CHECK(newCode(&code, CMD_PRINT));
-  CHECK(lhs = parseExpr(0));
+  int cnt = 0;
+  CHECK(parseExpr(0));
   while (charcon(';'))
   {
     if (charcon('\n'))
-    {
-      code.code.cmd.expr = lhs;
-      return sys->setCode(&code);
-    }
-    CHECK(lhs = makeExpr(OP_CONCAT, lhs, parseExpr(0)));
+      return addCode(CMD_PRINT, cnt);
+    CHECK(parseExpr(0));
+    cnt++;
   }
   ENSURE(charcon('\n'), ERR_NEWLINE);
-  CHECK(lhs = makeExpr(OP_CONCAT, lhs, makeStr("\n", 1)));
-  code.code.cmd.expr = lhs;
-  return sys->setCode(&code);
+  CHECK(addStr("\n", 1));
+  return addCode(CMD_PRINT, cnt + 1);
 }
 
 //-----------------------------------------------------------------------------
 static int parseAssign(const char* name, int len)
 {
   ENSURE(charcon('='), ERR_ASSIGN);
-  if (name[0] == '$')
-    CHECK(makeCodeExprParam(CMD_SET, parseExpr(0), regIndex(name, len)));
-  else
-    CHECK(makeCodeExprParam(CMD_LET, parseExpr(0), varIndex(name, len)));
+  CHECK(parseExpr(0));
   ENSURE(charcon('\n'), ERR_NEWLINE);
-  return 0;
+  return (name[0] == '$')
+      ? addCode(CMD_SET, regIndex(name, len))
+      : addCode(CMD_LET, varIndex(name, len));
 }
 
 //-----------------------------------------------------------------------------
@@ -596,17 +525,15 @@ static int parseGoto(eOp op)
   const char* name;
   int len;
   CHECK(len = namecon(&name));
-  CHECK(makeCodeExprParam(op, 0, lblIndex(name, len, -1)));
   ENSURE(charcon('\n'), ERR_NEWLINE);
-  return 0;
+  return addCode(op, lblIndex(name, len, -1));
 }
 
 //-----------------------------------------------------------------------------
 static int parseReturn()
 {
-  CHECK(makeCode(CMD_RETURN));
   ENSURE(charcon('\n'), ERR_NEWLINE);
-  return 0;
+  return addCode(CMD_RETURN, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -614,8 +541,8 @@ static int parseIf()
 {
   sCodeIdx cond;
 
+  CHECK(parseExpr(0));
   CHECK(newCode(&cond, CMD_IF));
-  CHECK(cond.code.cmd.expr = parseExpr(0));
   ENSURE(keycon("THEN"), ERR_IF_THEN);
   if (charcon('\n'))  // multi line IF
   {
@@ -625,14 +552,14 @@ static int parseIf()
       sCodeIdx eob;
       ENSURE(charcon('\n'), ERR_NEWLINE);
       CHECK(newCode(&eob, CMD_GOTO));
-      cond.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
+      cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
       CHECK(parseBlock());
-      eob.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
+      eob.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
       CHECK(sys->setCode(&eob));
     }
     else
     {
-      cond.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
+      cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
     }
     ENSURE(keycon("ENDIF"), ERR_IF_ENDIF);
     ENSURE(charcon('\n'), ERR_NEWLINE);
@@ -640,7 +567,7 @@ static int parseIf()
   else  // single line IF (no ELSE allowed)
   {
     CHECK (parseStmt());
-    cond.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
+    cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
   }
   CHECK(sys->setCode(&cond));
   return 0;
@@ -649,18 +576,20 @@ static int parseIf()
 //-----------------------------------------------------------------------------
 static int parseDo()
 {
-  idxType hdr = sys->getCode(NULL, NEXT_CODE_IDX);
   sCodeIdx top = { .idx = -1 };
+  idxType hdr;
 
+  CHECK(hdr = sys->getCode(NULL, NEXT_CODE_IDX));
   if (keycon("WHILE"))
   {
+    CHECK(parseExpr(0));
     CHECK(newCode(&top, CMD_IF));
-    CHECK(top.code.cmd.expr = parseExpr(0));
   }
   else if (keycon("UNTIL"))
   {
+    CHECK(parseExpr(0));
+    CHECK(addCode(OP_NOT, 0));
     CHECK(newCode(&top, CMD_IF));
-    CHECK(top.code.cmd.expr = makeExpr(OP_NOT, parseExpr(0), 0));
   }
   ENSURE(charcon('\n'), ERR_NEWLINE);
 
@@ -668,15 +597,22 @@ static int parseDo()
   ENSURE(keycon("LOOP"), ERR_DO_LOOP);
 
   if (keycon("UNTIL"))
-    CHECK(makeCodeExprParam(CMD_IF, parseExpr(0), hdr));
+  {
+    CHECK(parseExpr(0));
+    CHECK(addCode(CMD_IF, hdr));
+  }
   else if (keycon("WHILE"))
-    CHECK(makeCodeExprParam(CMD_IF, makeExpr(OP_NOT, parseExpr(0), 0), hdr));
+  {
+    CHECK(parseExpr(0));
+    CHECK(addCode(OP_NOT, 0));
+    CHECK(addCode(CMD_IF, hdr));
+  }
   else
-    CHECK(makeCodeExprParam(CMD_GOTO, 0, hdr));
+    CHECK(addCode(CMD_GOTO, hdr));
   ENSURE(charcon('\n'), ERR_NEWLINE);
   if (top.idx != -1)
   {
-    top.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
+    top.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
     CHECK(sys->setCode(&top));
   }
   return 0;
@@ -685,28 +621,33 @@ static int parseDo()
 //-----------------------------------------------------------------------------
 static int parseFor()
 {
-  int varExpr, varIdx, step;
-  sCodeIdx code;
+  idxType hdr;
+  int varIdx;
+  sCodeIdx cond;
 
-  CHECK(varExpr = parseVar());
-  CHECK(sys->getCode(&code, varExpr));
-  varIdx = code.code.param;
+  CHECK(varIdx = parseVar());
   ENSURE(charcon('='), ERR_ASSIGN);
-  CHECK(makeCodeExprParam(CMD_LET, parseExpr(0), varIdx));
+  CHECK(parseExpr(0));
+  CHECK(addCode(CMD_LET, varIdx));
   ENSURE(keycon("TO"), ERR_FOR_TO);
-  CHECK(newCode(&code, CMD_IF));
-  CHECK(code.code.cmd.expr = makeExpr(OP_LTEQ, varExpr, parseExpr(0)));
-  CHECK(step = keycon("STEP") ? parseExpr(0) : makeInt(1));
+  CHECK(hdr = sys->getCode(NULL, NEXT_CODE_IDX));
+  CHECK(addCode(VAL_VAR, varIdx));
+  CHECK(parseExpr(0));
+  CHECK(addCode(OP_LTEQ, 0));
+  CHECK(newCode(&cond, CMD_IF));
+  CHECK(keycon("STEP") ? parseExpr(0) : addInt(1));
   ENSURE(charcon('\n'), ERR_NEWLINE);
 
   CHECK(parseBlock());
 
   ENSURE(keycon("NEXT"), ERR_FOR_NEXT);
   ENSURE(charcon('\n'), ERR_NEWLINE);
-  CHECK(makeCodeExprParam(CMD_LET, makeExpr(OP_PLUS, varExpr, step), varIdx));
-  CHECK(makeCodeExprParam(CMD_GOTO, 0, code.idx));
-  code.code.cmd.param = sys->getCode(NULL, NEXT_CODE_IDX);
-  CHECK(sys->setCode(&code));
+  CHECK(addCode(VAL_VAR, varIdx));
+  CHECK(addCode(OP_PLUS, 0));
+  CHECK(addCode(CMD_LET, varIdx));
+  CHECK(addCode(CMD_GOTO, hdr));
+  cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
+  CHECK(sys->setCode(&cond));
   return 0;
 }
 
@@ -721,9 +662,8 @@ static int parseRem()
 //-----------------------------------------------------------------------------
 static int parseEnd()
 {
-  CHECK(makeCode(CMD_END));
   ENSURE(charcon('\n'), ERR_NEWLINE);
-  return 0;
+  return addCode(CMD_END, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -806,7 +746,7 @@ int parseAll(const sSys* system, int* errline, int* errcol)
   int err;
   if (((err = parseBlock()                 ) >= 0) &&
       ((err = (keycon("EOF") ? 0 : ERR_EOF)) >= 0) &&
-      ((err = makeCode(CMD_END)            ) >= 0))
+      ((err = addCode(CMD_END, 0)          ) >= 0))
     return 0;
 
   for (int i = 1; i < READ_AHEAD_BUF_SIZE && s[i] != '\n'; i++)
@@ -829,10 +769,10 @@ int link(const sSys* system)
   {
     if (code.code.op == LNK_GOTO || code.code.op == LNK_GOSUB)
     {
-      ENSURE(code.code.cmd.param < ARRAY_SIZE(labelDst), ERR_LABEL_INV);
-      ENSURE(labelDst[code.code.cmd.param] != (idxType)-1, ERR_LABEL_MISSING);
+      ENSURE(code.code.param < ARRAY_SIZE(labelDst), ERR_LABEL_INV);
+      ENSURE(labelDst[code.code.param] != (idxType)-1, ERR_LABEL_MISSING);
       code.code.op = (code.code.op == LNK_GOTO) ? CMD_GOTO : CMD_GOSUB;
-      code.code.cmd.param = labelDst[code.code.cmd.param];
+      code.code.param = labelDst[code.code.param];
       system->setCode(&code);
     }
   }

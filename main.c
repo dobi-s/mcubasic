@@ -15,7 +15,6 @@
 //=============================================================================
 sCode myCode[CODE_MEM];
 int   myNextCode = 0;
-int   myNextData = CODE_MEM - 1;
 char  myStrings[STRING_MEM];
 int   myNextStr = 0;
 sReg  regs[MAX_REG_NUM];
@@ -61,20 +60,8 @@ static int addCode(const sCode* code)
   int idx;
 
   ENSURE(code, ERR_MEM_CODE);
-
-  if (code->op >= CODE_START && code->op <= CODE_END) // Code
-  {
-    ENSURE(myNextCode < myNextData, ERR_MEM_CODE);
-    idx = myNextCode++;
-  }
-  else // Data
-  {
-    for (idx = myNextData + 1; idx < CODE_MEM; idx++)
-      if (memcmp(code, &myCode[idx], sizeof(sCode)) == 0)
-        return idx;
-    ENSURE(myNextCode < myNextData, ERR_MEM_CODE);
-    idx = myNextData--;
-  }
+  ENSURE(myNextCode < CODE_MEM, ERR_MEM_CODE);
+  idx = myNextCode++;
   memcpy(&myCode[idx], code, sizeof(sCode));
   return idx;
 }
@@ -90,17 +77,15 @@ static int setCode(const sCodeIdx* code)
 //-----------------------------------------------------------------------------
 static int getCode(sCodeIdx* code, int idx)
 {
-  if (idx == NEW_CODE || idx == NEW_DATA)
+  if (idx == NEW_CODE)
   {
-    if (myNextCode >= myNextData || !code) return ERR_MEM_CODE;
+    if (myNextCode >= CODE_MEM || !code) return ERR_MEM_CODE;
     memset(&code->code, 0x00, sizeof(sCode));
-    code->idx = (idx == NEW_CODE) ? myNextCode++ : myNextData--;
+    code->idx = myNextCode++;
     return code->idx;
   }
   if (idx == NEXT_CODE_IDX)
     return myNextCode;
-  if (idx == NEXT_DATA_IDX)
-    return myNextData;
 
   if (idx < 0 || idx >= CODE_MEM)
     return ERR_MEM_CODE;
@@ -134,11 +119,11 @@ static int setString(const char* str, unsigned int len)
 }
 
 //-----------------------------------------------------------------------------
-static int getString(char* str, int start, unsigned int len)
+static int getString(const char** str, int start, unsigned int len)
 {
   if (start + len > STRING_MEM)
     return ERR_STR_MEM;
-  memcpy(str, &myStrings[start], len);
+  *str = &myStrings[start];
   return len;
 }
 
@@ -180,8 +165,6 @@ int main()
 
   printf("\n----------------------------------------------------------------------------\n");
   debugPrintRaw(&sys);
-  printf("\n----------------------------------------------------------------------------\n");
-  debugPrintPretty(&sys);
   printf("\n============================================================================\n");
   printf("'%.*s'", myNextStr, myStrings);
   printf("\n============================================================================\n");
