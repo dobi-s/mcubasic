@@ -15,6 +15,7 @@
 #define ERR_EXEC_STACK_UF   -809  // Stack underflow
 #define ERR_EXEC_STACK_OF   -810  // Stack overflow
 #define ERR_EXEC_OP_INV     -811  // Invalid operator
+#define ERR_EXEC_SVC_INV    -812  // Invalid supervisor call
 
 //=============================================================================
 // Functions

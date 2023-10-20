@@ -25,6 +25,17 @@ sReg  regs[MAX_REG_NUM];
 static FILE* file;
 
 //=============================================================================
+// Registers, functions
+//=============================================================================
+int test(sCode* stack)
+{
+  printf("\n--- test called ---\n");
+  stack[0].op     = VAL_INTEGER;
+  stack[0].iValue = 123;
+  return 0;
+}
+
+//=============================================================================
 // Private functions
 //=============================================================================
 static char getNextChar(void)
@@ -144,6 +155,10 @@ int main()
     .regs        =
     {
       { "$TICK", NULL, NULL, 0},
+    },
+    .svcs        =
+    {
+      { "TEST", test, 2 },
     }
   };
 

@@ -27,6 +27,7 @@ typedef enum
   CMD_POP,          //  X                -       -1
   CMD_NOP,          //  X                -       -
   CMD_END,          //  X                -       -
+  CMD_SVC,          //  X                <func>  -<func>.argc
   OP_NEQ,           //  X                -       -2+1
   OP_LTEQ,          //  X                -       -2+1
   OP_GTEQ,          //  X                -       -2+1
@@ -94,13 +95,24 @@ typedef struct
 } sReg;
 
 //-----------------------------------------------------------------------------
+typedef int (*fSvc)(sCode* stack);
 typedef struct
 {
-  char (*getNextChar)(void);
-  int  (*addCode)(const sCode* code);
-  int  (*setCode)(const sCodeIdx* code);
-  int  (*getCode)(sCodeIdx* code, int idx);
-  int  (*setString)(const char* str, unsigned int len);
-  int  (*getString)(const char** str, int start, unsigned int len);
-  sReg regs[MAX_REG_NUM];
+  char* name;
+  fSvc  func;
+  int   argc;
+} sSvc;
+
+
+//-----------------------------------------------------------------------------
+typedef struct
+{
+  char  (*getNextChar)(void);
+  int   (*addCode)(const sCode* code);
+  int   (*setCode)(const sCodeIdx* code);
+  int   (*getCode)(sCodeIdx* code, int idx);
+  int   (*setString)(const char* str, unsigned int len);
+  int   (*getString)(const char** str, int start, unsigned int len);
+  sReg  regs[MAX_REG_NUM];
+  sSvc  svcs[MAX_SVC_NUM];
 } sSys;

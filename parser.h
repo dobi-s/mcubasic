@@ -12,7 +12,7 @@
 #define ERR_VAR_NAME        -7    // Invalid variable name
 #define ERR_REG_NAME        -8    // Invalid register name
 #define ERR_STR_INV         -9    // Invalid string
-#define ERR_STR_LENGTH      -10    // String too long
+#define ERR_STR_LENGTH      -10   // String too long
 #define ERR_STR_MEM         -11   // Not enough string memory
 #define ERR_EXPR_BRACKETS   -12   // Brackets not closed
 #define ERR_NUM_INV         -13   // Invalid number
@@ -29,6 +29,9 @@
 #define ERR_EOF             -24   // EOF expected
 #define ERR_LABEL_INV       -25   // Label invalid (linker error)
 #define ERR_LABEL_MISSING   -26   // Label missing (linker error)
+#define ERR_BRACKETS_MISS   -27   // Brackets missing on function call
+#define ERR_SVC_NOT_FOUND   -28   // SVC function not found
+#define ERR_ARG_MISMATCH    -29   // Argument mismatch
 #define ERR_NOT_IMPL        -999  // Not implemented yet
 
 

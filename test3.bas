@@ -7,6 +7,7 @@ PRINT "oje";
 PRINT "xyz"
 GOSUB print_sub
 print "Ende"
+print TEST(1+2, 5*4) + 2
 END
 
 print_sub: print "sub"

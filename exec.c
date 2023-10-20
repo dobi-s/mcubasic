@@ -159,6 +159,15 @@ static int returnSub(idxType cnt)
   return stack[sp].param;
 }
 
+//-----------------------------------------------------------------------------
+static int svc(sSys* sys, idxType idx)
+{
+  ENSURE(idx >= 0 && idx < ARRAY_SIZE(sys->svcs), ERR_EXEC_SVC_INV);
+  ENSURE(sp > sys->svcs[idx].argc, ERR_EXEC_STACK_UF);
+  sp -= sys->svcs[idx].argc;
+  return sys->svcs[idx].func(&stack[sp - 1]);
+}
+
 //=============================================================================
 // Public functions
 //=============================================================================
@@ -216,6 +225,9 @@ int exec(sSys* sys, idxType pc)
       return pc + 1;
     case CMD_END:
       return ERR_EXEC_END;
+    case CMD_SVC:
+      CHECK(svc(sys, code.code.param));
+      return pc + 1;
     case OP_NEQ:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
       CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))

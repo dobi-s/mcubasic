@@ -193,7 +193,7 @@ static int strcon(const char* str)
 }
 
 //-----------------------------------------------------------------------------
-static int charcon(char c)
+static int chrcon(char c)
 {
   if (c != *s)
     return 0;
@@ -267,6 +267,19 @@ static int regIndex(const char* name, int len)
       return idx;
   }
   return ERR_REG_NOT_FOUND;
+}
+
+//-----------------------------------------------------------------------------
+static int svcIndex(const char* name, int len)
+{
+  int idx;
+  for (idx = 0; idx < MAX_SVC_NUM; idx++)
+  {
+    if ((sys->svcs[idx].name[len] == '\0'            ) &&
+        (memcmp(name, sys->svcs[idx].name, len) == 0))
+      return idx;
+  }
+  return ERR_SVC_NOT_FOUND;
 }
 
 //-----------------------------------------------------------------------------
@@ -357,6 +370,38 @@ static int addInt(int value)
 }
 
 //-----------------------------------------------------------------------------
+static int parseFunc(const char* name, int len, bool sub)
+{
+  int argc = 0;
+  idxType idx = svcIndex(name, len);
+  bool svc = (idx >= 0);
+  char end = sub ? '\n' : ')';
+  ENSURE(svc, idx);  // TODO: check for user defined function
+
+  CHECK(addInt(0));  // Return value
+  if (!chrcon(end))
+  {
+    parseExpr(0);
+    argc++;
+  }
+  while(chrcon(','))
+  {
+    parseExpr(0);
+    argc++;
+  }
+  ENSURE(sub || chrcon(')'), ERR_BRACKETS_MISS);
+
+  if (svc)
+  {
+    ENSURE(argc == sys->svcs[idx].argc, ERR_ARG_MISMATCH);
+    CHECK(addCode(CMD_SVC, idx));
+  }
+  if (sub)
+    CHECK(addCode(CMD_POP, 0));  // Consume return value
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
 static int parseVar(void)
 {
   const char* name;
@@ -367,18 +412,10 @@ static int parseVar(void)
 }
 
 //-----------------------------------------------------------------------------
-static int parseReg()
+static int parseVal(int level)
 {
   const char* name;
   int         len;
-  ENSURE(*s == '$', ERR_REG_NAME);
-  CHECK(len = namecon(&name));
-  return regIndex(name, len);
-}
-
-//-----------------------------------------------------------------------------
-static int parseVal(int level)
-{
   (void)level;
 
   // Empty
@@ -403,10 +440,10 @@ static int parseVal(int level)
   }
 
   // Bracket
-  if (charcon('('))
+  if (chrcon('('))
   {
     CHECK(parseExpr(0));
-    ENSURE(charcon(')'), ERR_EXPR_BRACKETS);
+    ENSURE(chrcon(')'), ERR_EXPR_BRACKETS);
     return 0;
   }
 
@@ -439,10 +476,18 @@ static int parseVal(int level)
 
   // Registers
   if (*s == '$')
-    return addCode(VAL_REG, parseReg());
+  {
+    CHECK(len = namecon(&name));
+    return addCode(VAL_REG, regIndex(name, len));
+  }
+
+  // Functions
+  CHECK(len = namecon(&name));
+  if (chrcon('('))
+    return parseFunc(name, len, false);
 
   // Variables
-  return addCode(VAL_VAR, parseVar());
+  return addCode(VAL_VAR, varIndex(name, len));
 }
 
 //-----------------------------------------------------------------------------
@@ -496,14 +541,14 @@ static int parsePrint()
 {
   int cnt = 0;
   CHECK(parseExpr(0));
-  while (charcon(';'))
+  while (chrcon(';'))
   {
-    if (charcon('\n'))
+    if (chrcon('\n'))
       return addCode(CMD_PRINT, cnt);
     CHECK(parseExpr(0));
     cnt++;
   }
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
   CHECK(addStr("\n", 1));
   return addCode(CMD_PRINT, cnt + 1);
 }
@@ -511,9 +556,8 @@ static int parsePrint()
 //-----------------------------------------------------------------------------
 static int parseAssign(const char* name, int len)
 {
-  ENSURE(charcon('='), ERR_ASSIGN);
   CHECK(parseExpr(0));
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
   return (name[0] == '$')
       ? addCode(CMD_SET, regIndex(name, len))
       : addCode(CMD_LET, varIndex(name, len));
@@ -525,14 +569,14 @@ static int parseGoto(eOp op)
   const char* name;
   int len;
   CHECK(len = namecon(&name));
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
   return addCode(op, lblIndex(name, len, -1));
 }
 
 //-----------------------------------------------------------------------------
 static int parseReturn()
 {
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
   return addCode(CMD_RETURN, 0);
 }
 
@@ -544,13 +588,13 @@ static int parseIf()
   CHECK(parseExpr(0));
   CHECK(newCode(&cond, CMD_IF));
   ENSURE(keycon("THEN"), ERR_IF_THEN);
-  if (charcon('\n'))  // multi line IF
+  if (chrcon('\n'))  // multi line IF
   {
     CHECK(parseBlock());
     if (keycon("ELSE"))
     {
       sCodeIdx eob;
-      ENSURE(charcon('\n'), ERR_NEWLINE);
+      ENSURE(chrcon('\n'), ERR_NEWLINE);
       CHECK(newCode(&eob, CMD_GOTO));
       cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
       CHECK(parseBlock());
@@ -562,7 +606,7 @@ static int parseIf()
       cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
     }
     ENSURE(keycon("ENDIF"), ERR_IF_ENDIF);
-    ENSURE(charcon('\n'), ERR_NEWLINE);
+    ENSURE(chrcon('\n'), ERR_NEWLINE);
   }
   else  // single line IF (no ELSE allowed)
   {
@@ -591,7 +635,7 @@ static int parseDo()
     CHECK(addCode(OP_NOT, 0));
     CHECK(newCode(&top, CMD_IF));
   }
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
 
   CHECK(parseBlock());
   ENSURE(keycon("LOOP"), ERR_DO_LOOP);
@@ -609,7 +653,7 @@ static int parseDo()
   }
   else
     CHECK(addCode(CMD_GOTO, hdr));
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
   if (top.idx != -1)
   {
     top.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
@@ -626,7 +670,7 @@ static int parseFor()
   sCodeIdx cond;
 
   CHECK(varIdx = parseVar());
-  ENSURE(charcon('='), ERR_ASSIGN);
+  ENSURE(chrcon('='), ERR_ASSIGN);
   CHECK(parseExpr(0));
   CHECK(addCode(CMD_LET, varIdx));
   ENSURE(keycon("TO"), ERR_FOR_TO);
@@ -636,12 +680,12 @@ static int parseFor()
   CHECK(addCode(OP_LTEQ, 0));
   CHECK(newCode(&cond, CMD_IF));
   CHECK(keycon("STEP") ? parseExpr(0) : addInt(1));
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
 
   CHECK(parseBlock());
 
   ENSURE(keycon("NEXT"), ERR_FOR_NEXT);
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
   CHECK(addCode(VAL_VAR, varIdx));
   CHECK(addCode(OP_PLUS, 0));
   CHECK(addCode(CMD_LET, varIdx));
@@ -655,14 +699,14 @@ static int parseFor()
 static int parseRem()
 {
   while (*s != '\n') readChars(1, true);
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
   return 0;
 }
 
 //-----------------------------------------------------------------------------
 static int parseEnd()
 {
-  ENSURE(charcon('\n'), ERR_NEWLINE);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
   return addCode(CMD_END, 0);
 }
 
@@ -670,7 +714,7 @@ static int parseEnd()
 static int parseLabel(const char* name, int len)
 {
   CHECK(lblIndex(name, len, sys->getCode(NULL, NEXT_CODE_IDX)));
-  if (!charcon('\n'));
+  if (!chrcon('\n'));
   return parseStmt();
 }
 
@@ -680,7 +724,7 @@ static int parseStmt(void)
   const char* name;
   int len;
 
-  while (charcon('\n'));
+  while (chrcon('\n'));
 
   if (keycon("PRINT"))
     return parsePrint();
@@ -703,14 +747,17 @@ static int parseStmt(void)
   if (keycon("LET"))
   {
     CHECK(len = namecon(&name));
+    ENSURE(chrcon('='), ERR_ASSIGN);
     return parseAssign(name, len);
   }
 
   // Commands without keyword
   CHECK(len = namecon(&name));
-  if (charcon(':'))  // Label
+  if (chrcon(':'))  // Label
     return parseLabel(name, len);
-  return parseAssign(name, len);
+  if (chrcon('='))  // Assignment
+    return parseAssign(name, len);
+  return parseFunc(name, len, true);
 }
 
 //-----------------------------------------------------------------------------
@@ -718,7 +765,7 @@ static int parseBlock(void)
 {
   while (1)
   {
-    if (charcon('\n'))
+    if (chrcon('\n'))
       continue; // Skip empty lines
 
     if (keycmp("ELSE") ||

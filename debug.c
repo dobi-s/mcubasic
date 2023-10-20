@@ -20,6 +20,7 @@ static const char* opStr(eOp op)
     case CMD_POP:     return "Pop";
     case CMD_NOP:     return "Nop";
     case CMD_END:     return "End";
+    case CMD_SVC:     return "Svc";
     case LNK_GOTO:    return "GoTo*";
     case LNK_GOSUB:   return "GoSub*";
     case OP_NEQ:      return "<>";
@@ -81,6 +82,9 @@ const char* errmsg(int err)
     case ERR_EOF:           return "EOF expected";
     case ERR_LABEL_INV:     return "Label invalid";
     case ERR_LABEL_MISSING: return "Label missing";
+    case ERR_BRACKETS_MISS: return "Brackets missing on function call";
+    case ERR_SVC_NOT_FOUND: return "SVC function not found";
+    case ERR_ARG_MISMATCH:  return "Argument mismatch";
     case ERR_NOT_IMPL:      return "Not implemented yet";
     default:                return "(unknown)";
   }
@@ -109,6 +113,7 @@ void debugPrintRaw(const sSys* sys)
       case CMD_GOSUB:
       case LNK_GOSUB:
       case CMD_RETURN:
+      case CMD_SVC:
       case VAL_VAR:
       case VAL_REG:
         printf("%3d: %-7s %3d\n", i, opStr(c.code.op), c.code.param);

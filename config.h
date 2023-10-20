@@ -9,6 +9,7 @@
 #define CODE_MEM           200    // Memory for code and data  [operations]
 #define STRING_MEM         200    // Memory for string storage [bytes]
 #define MAX_REG_NUM         16    // Max number of registers
+#define MAX_SVC_NUM         16    // Max number of buildin functions
 
 #define MAX_NAME            10    // Max length of names (var, reg, label)
 
