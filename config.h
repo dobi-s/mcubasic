@@ -17,6 +17,8 @@
 // Parser
 //-----------------------------------------------------------------------------
 #define MAX_VAR_NUM         16    // Max number of variables
+#define MAX_SUB_NUM         16    // Max number of sub functions
+#define MAX_LCL_NUM         16    // Max number of local variables
 #define MAX_LABELS          16    // Max number of labels
 #define MAX_STRING          40    // Max length of individual string
 
@@ -24,3 +26,26 @@
 // Exec
 //-----------------------------------------------------------------------------
 #define STACK_SIZE          32    // Stack size [entries]
+
+// TODO: Use local variables only + scoping!
+// Blöcke sind
+// - Sub
+// - Do/Loop
+// - For/Next
+// - If/Else/EndIf
+// - Main
+//
+// Globale Variablen mit fixem SP-Wert
+// Locale Variablen mit relativem SP-Wert
+//
+// Variablen müssen mit DIM angelegt werden
+//
+// ----
+//
+// Combine subs and labels
+//
+// ----
+//
+// Split End-Keywords (eg "EndIf" -> "End If")
+//
+

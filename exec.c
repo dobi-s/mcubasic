@@ -154,9 +154,12 @@ static int print(sSys* sys, idxType cnt)
 //-----------------------------------------------------------------------------
 static int returnSub(idxType cnt)
 {
-  ENSURE(sp-- > 0, ERR_EXEC_STACK_UF);
+  idxType res;
+  ENSURE(sp-- > cnt, ERR_EXEC_STACK_UF);
   ENSURE(stack[sp].op == VAL_LABEL, ERR_EXEC_CMD_INV);
-  return stack[sp].param;
+  res = stack[sp].param;
+  sp -= cnt;
+  return res;
 }
 
 //-----------------------------------------------------------------------------
@@ -200,11 +203,16 @@ int exec(sSys* sys, idxType pc)
     case CMD_PRINT:
       CHECK(print(sys, code.code.param));
       return pc + 1;
-    case CMD_LET:
+    case CMD_LET_GBL:
       ENSURE(sp > 0, ERR_EXEC_STACK_UF);
       CHECK(setVar(code.code.param, &stack[--sp]));
       return pc + 1;
-    case CMD_SET:
+    case CMD_LET_LCL:
+      ENSURE(sp >= code.code.param, ERR_EXEC_STACK_UF);
+      memcpy(&stack[sp - code.code.param], &stack[sp-1], sizeof(stack[0]));
+      sp--;
+      return pc + 1;
+    case CMD_LET_REG:
       ENSURE(sp > 0, ERR_EXEC_STACK_UF);
       CHECK(setReg(sys, code.code.param, &stack[--sp]));
       return pc + 1;
@@ -333,7 +341,10 @@ int exec(sSys* sys, idxType pc)
       CHECK(getReg(sys, &value, code.code.param));
       CHECK(pushCode(&value));
       return pc + 1;
-
+    case VAL_STACK:
+      ENSURE(sp >= code.code.param, ERR_EXEC_STACK_UF);
+      CHECK(pushCode(&stack[sp - code.code.param]));
+      return pc + 1;
     default:
       return ERR_EXEC_CMD_INV;
   }

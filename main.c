@@ -143,7 +143,7 @@ static int getString(const char** str, int start, unsigned int len)
 //=============================================================================
 int main()
 {
-  const char* const filename = "test3.bas";
+  const char* const filename = "test4.bas";
   sSys sys =
   {
     .getNextChar = getNextChar,
@@ -188,6 +188,9 @@ int main()
   while (pc >= 0)
     pc = exec(&sys, pc);
 
-  printf("Done: %d\n", pc);
+  if (pc == ERR_EXEC_END)
+    printf("--- Done ---\n", pc);
+  else
+    printf("--- Err: %d ---\n", pc);
   return 0;
 }
