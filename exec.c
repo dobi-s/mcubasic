@@ -16,8 +16,7 @@
 //=============================================================================
 static sCode stack[STACK_SIZE];
 static idxType sp = 0;
-
-sCode  var[MAX_VAR_NUM];
+static idxType fp = 0;
 
 //=============================================================================
 // Private functions
@@ -72,11 +71,12 @@ static inline int pushFloat(fType value)
 }
 
 //-----------------------------------------------------------------------------
-static inline int pushLabel(idxType idx)
+static inline int pushLabel(idxType idx, idxType fp)
 {
   ENSURE(sp < ARRAY_SIZE(stack), ERR_EXEC_STACK_OF);
-  stack[sp].op    = VAL_LABEL;
-  stack[sp].param = idx;
+  stack[sp].op      = VAL_LABEL;
+  stack[sp].lbl.lbl = idx;
+  stack[sp].lbl.fp  = fp;
   sp++;
   return 0;
 }
@@ -86,22 +86,6 @@ static inline int pushCode(sCode* code)
 {
   ENSURE(sp < ARRAY_SIZE(stack), ERR_EXEC_STACK_OF);
   memcpy(&stack[sp++], code, sizeof(sCode));
-  return 0;
-}
-
-//-----------------------------------------------------------------------------
-static int getVar(sCode* value, idxType idx)
-{
-  ENSURE(idx >= 0 && idx < MAX_VAR_NUM, ERR_EXEC_VAR_INV);
-  memcpy(value, &var[idx], sizeof(sCode));
-  return 0;
-}
-
-//-----------------------------------------------------------------------------
-static int setVar(idxType idx, sCode* value)
-{
-  ENSURE(idx >= 0 && idx < MAX_VAR_NUM, ERR_EXEC_VAR_INV);
-  memcpy(&var[idx], value, sizeof(sCode));
   return 0;
 }
 
@@ -157,7 +141,8 @@ static int returnSub(idxType cnt)
   idxType res;
   ENSURE(sp-- > cnt, ERR_EXEC_STACK_UF);
   ENSURE(stack[sp].op == VAL_LABEL, ERR_EXEC_CMD_INV);
-  res = stack[sp].param;
+  res = stack[sp].lbl.lbl;
+  fp  = stack[sp].lbl.fp;
   sp -= cnt;
   return res;
 }
@@ -174,17 +159,6 @@ static int svc(sSys* sys, idxType idx)
 //=============================================================================
 // Public functions
 //=============================================================================
-int exec_init(void)
-{
-  for (int i = 0; i < MAX_VAR_NUM; i++)
-  {
-    var[i].op = VAL_INTEGER;
-    var[i].iValue = 0;
-  }
-  return 0;
-}
-
-//-----------------------------------------------------------------------------
 int exec(sSys* sys, idxType pc)
 {
   sCodeIdx code;
@@ -196,7 +170,7 @@ int exec(sSys* sys, idxType pc)
   CHECK(sys->getCode(&code, pc));
 
   extern void debugState(sCodeIdx* code, sCode* stack, idxType sp);
-  // debugState(&code, stack, sp);
+  debugState(&code, stack, sp);
 
   switch (code.code.op)
   {
@@ -205,12 +179,12 @@ int exec(sSys* sys, idxType pc)
       return pc + 1;
     case CMD_LET_GBL:
       ENSURE(sp > 0, ERR_EXEC_STACK_UF);
-      CHECK(setVar(code.code.param, &stack[--sp]));
+      ENSURE(code.code.param >= 0 && code.code.param < sp, ERR_EXEC_VAR_INV);
+      memcpy(&stack[code.code.param], &stack[--sp], sizeof(stack[0]));
       return pc + 1;
     case CMD_LET_LCL:
-      ENSURE(sp >= code.code.param, ERR_EXEC_STACK_UF);
-      memcpy(&stack[sp - code.code.param], &stack[sp-1], sizeof(stack[0]));
-      sp--;
+      ENSURE(fp + code.code.param >= 0 && fp + code.code.param < sp, ERR_EXEC_VAR_INV);
+      memcpy(&stack[fp + code.code.param], &stack[--sp], sizeof(stack[0]));
       return pc + 1;
     case CMD_LET_REG:
       ENSURE(sp > 0, ERR_EXEC_STACK_UF);
@@ -222,12 +196,14 @@ int exec(sSys* sys, idxType pc)
     case CMD_GOTO:
       return code.code.param;
     case CMD_GOSUB:
-      CHECK(pushLabel(pc + 1));
+      CHECK(pushLabel(pc + 1, fp));
+      fp = sp - 1;
       return code.code.param;
     case CMD_RETURN:
       return returnSub(code.code.param);
     case CMD_POP:
-      ENSURE(sp-- > 0, ERR_EXEC_STACK_UF);
+      ENSURE(sp-- > code.code.param, ERR_EXEC_STACK_UF);
+      sp -= code.code.param;
       return pc + 1;
     case CMD_NOP:
       return pc + 1;
@@ -334,16 +310,16 @@ int exec(sSys* sys, idxType pc)
       CHECK(pushCode(&code.code));
       return pc + 1;
     case VAL_VAR:
-      CHECK(getVar(&value, code.code.param));
-      CHECK(pushCode(&value));
+      ENSURE(code.code.param >= 0 && code.code.param < sp, ERR_EXEC_VAR_INV);
+      CHECK(pushCode(&stack[code.code.param]));
       return pc + 1;
     case VAL_REG:
       CHECK(getReg(sys, &value, code.code.param));
       CHECK(pushCode(&value));
       return pc + 1;
     case VAL_STACK:
-      ENSURE(sp >= code.code.param, ERR_EXEC_STACK_UF);
-      CHECK(pushCode(&stack[sp - code.code.param]));
+      ENSURE(fp + code.code.param >= 0 && fp + code.code.param < sp, ERR_EXEC_VAR_INV);
+      CHECK(pushCode(&stack[fp + code.code.param]));
       return pc + 1;
     default:
       return ERR_EXEC_CMD_INV;

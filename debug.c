@@ -68,13 +68,13 @@ static void printCmd(idxType i, sCode* c)
     case CMD_GOSUB:
     case LNK_GOSUB:
     case CMD_RETURN:
+    case CMD_POP:
     case CMD_SVC:
     case VAL_VAR:
     case VAL_REG:
     case VAL_STACK:
       printf("%3d: %-7s (%5d)", i, opStr(c->op), c->param);
       break;
-    case CMD_POP:
     case CMD_NOP:
     case CMD_END:
     case OP_NEQ:
@@ -199,6 +199,7 @@ void debugPrintRaw(const sSys* sys)
 void debugState(sCodeIdx* code, sCode* stack, idxType sp)
 {
   printCmd(code->idx, &code->code);
+  printf(" %3d:", sp);
   for (int i = 0; i < sp; i++)
     switch (stack[i].op)
     {
@@ -215,5 +216,5 @@ void debugState(sCodeIdx* code, sCode* stack, idxType sp)
         printf(" [Lbl %3d]", stack[i].param);
         break;
     }
-  printf(" %d\n", sp);
+  printf("\n");
 }

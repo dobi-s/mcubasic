@@ -25,7 +25,7 @@ typedef enum
   CMD_GOSUB,        //  X                <lbl>     -
   LNK_GOSUB,        //          X        <lbl>     -
   CMD_RETURN,       //  X                <cnt>     -1-<cnt>
-  CMD_POP,          //  X                -         -1
+  CMD_POP,          //  X                <cnt>     -1-<cnt>
   CMD_NOP,          //  X                -         -
   CMD_END,          //  X                -         -
   CMD_SVC,          //  X                <func>    -<func>.argc
@@ -70,6 +70,11 @@ typedef struct sCode
     iType       iValue;
     fType       fValue;
     idxType     param;    // var (VAR, LET), reg (REG, SET), lbl (IF, GOTO, GOSUB)
+    struct
+    {
+      idxType   lbl;      // return address
+      idxType   fp;       // frame pointer
+    } lbl;
     struct
     {
       idxType   start;

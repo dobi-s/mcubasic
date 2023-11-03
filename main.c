@@ -143,7 +143,7 @@ static int getString(const char** str, int start, unsigned int len)
 //=============================================================================
 int main()
 {
-  const char* const filename = "test4.bas";
+  const char* const filename = "test5.bas";
   sSys sys =
   {
     .getNextChar = getNextChar,
@@ -184,7 +184,7 @@ int main()
   printf("'%.*s'", myNextStr, myStrings);
   printf("\n============================================================================\n");
 
-  idxType pc = exec_init();
+  idxType pc = 0;
   while (pc >= 0)
     pc = exec(&sys, pc);
 

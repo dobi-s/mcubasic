@@ -32,6 +32,7 @@ typedef int (*fParser)(int);
 //=============================================================================
 // Prototypes
 //=============================================================================
+static int addInt(int value);
 static int parseDual(int level);
 static int parsePrefix(int level);
 static int parseVal(int level);
@@ -80,14 +81,16 @@ static const fParser parser[] =
 // Private variables
 //=============================================================================
 static char    varName[MAX_VAR_NUM][MAX_NAME];
+static idxType varIndex[MAX_VAR_NUM];
+static idxType varLevel[MAX_VAR_NUM];
 static char    labels[MAX_LABELS][MAX_NAME];
 static idxType labelDst[MAX_LABELS];
 static char    subName[MAX_SUB_NUM][MAX_NAME];
 static idxType subLabel[MAX_SUB_NUM];
 static idxType subArgc[MAX_SUB_NUM];
-static char    localName[MAX_LCL_NUM][MAX_NAME];
 
 static int sp = 0;  // Stack pointer tracking
+static int level;
 
 static const sSys* sys;
 static const char* s = NULL;
@@ -129,6 +132,7 @@ static bool isKeyword(const char* str, int len)
   } keywords[] =
   {
     { "AND",    3 },
+    { "DIM",    3 },
     { "DO",     2 },
     { "ELSE",   4 },
     { "END",    3 },
@@ -237,30 +241,64 @@ static int namecon(const char** name)
 }
 
 //-----------------------------------------------------------------------------
-static int varIndex(const char* name, int len)
+static int getVar(const char* name, int len)
 {
-  int idx;
-  for (idx = 0; idx < ARRAY_SIZE(varName); idx++)
+  for (int idx = MAX_VAR_NUM - 1; idx >= 0; idx--)
   {
     if ((len == MAX_NAME || varName[idx][len] == '\0') &&
         memcmp(name, varName[idx], len) == 0)
       return idx;
   }
+  return ERR_VAR_UNDEF;
+}
 
-  // not found -> add
-  for (idx = 0; idx < ARRAY_SIZE(varName); idx++)
+//-----------------------------------------------------------------------------
+static int addVar(const char* name, int len, int level)
+{
+  int idx = getVar(name, len);
+  ENSURE(idx < 0 || varLevel[idx] != level, ERR_VAR_NAME);
+
+  for (idx = 0; idx < MAX_VAR_NUM; idx++)
   {
     if (varName[idx][0] == '\0')
     {
       memcpy(varName[idx], name, len);
       if (len < MAX_NAME)
         varName[idx][len] = '\0';
+      varLevel[idx] = level;
       return idx;
     }
   }
-
-  // no free slot found -> error
   return ERR_VAR_COUNT;
+}
+
+//-----------------------------------------------------------------------------
+static int getOrAddVar(const char* name, int len)
+{
+  int idx = getVar(name, len);
+  if (idx < 0)
+  {
+    CHECK(idx = addVar(name, len, level));
+    varIndex[idx] = sp;
+    CHECK(addInt(0));
+  }
+  return idx;
+}
+
+//-----------------------------------------------------------------------------
+static int clrVar(int level)
+{
+  int cnt = 0;
+
+  for (int idx = 0; idx < ARRAY_SIZE(varName); idx++)
+  {
+    if (varName[idx][0] == '\0' || varLevel[idx] < level)
+      continue;
+
+    varName[idx][0] = '\0';
+    cnt++;
+  }
+  return cnt;
 }
 
 //-----------------------------------------------------------------------------
@@ -318,18 +356,6 @@ static int svcIndex(const char* name, int len)
 }
 
 //-----------------------------------------------------------------------------
-static int localIndex(const char* name, int len)
-{
-  for (int idx = 0; idx < MAX_LCL_NUM; idx++)
-  {
-    if ((len == MAX_NAME || localName[idx][len] == '\0') &&
-        memcmp(name, localName[idx], len) == 0)
-      return sp - idx;
-  }
-  return ERR_LOCAL_NOT_FOUND;
-}
-
-//-----------------------------------------------------------------------------
 static int lblIndex(const char* name, int len, int dst)
 {
   int idx;
@@ -368,6 +394,7 @@ static void trackStack(eOp op, int param)
   {
     case CMD_PRINT:
     case CMD_RETURN:
+    case CMD_POP:
       sp -= 1+param;
       break;
     case CMD_GOSUB:
@@ -379,7 +406,6 @@ static void trackStack(eOp op, int param)
     case CMD_LET_LCL:
     case CMD_LET_REG:
     case CMD_IF:
-    case CMD_POP:
     case OP_NEQ:
     case OP_LTEQ:
     case OP_GTEQ:
@@ -425,7 +451,8 @@ static int addCode(eOp op, int param)
     .op    = op,
     .param = param
   };
-  CHECK(param);
+  if (op != VAL_STACK && op != CMD_LET_LCL)
+    CHECK(param);
   trackStack(op, param);
   return sys->addCode(&code);
 }
@@ -510,16 +537,6 @@ static int parseFunc(const char* name, int len, bool sub)
 }
 
 //-----------------------------------------------------------------------------
-static int parseVar(void)
-{
-  const char* name;
-  int         len;
-  ENSURE(*s != '$', ERR_VAR_NAME);
-  CHECK(len = namecon(&name));
-  return varIndex(name, len);
-}
-
-//-----------------------------------------------------------------------------
 static int parseVal(int level)
 {
   const char* name;
@@ -594,13 +611,10 @@ static int parseVal(int level)
   if (chrcon('('))
     return parseFunc(name, len, false);
 
-  // Local variables
-  idxType idx = localIndex(name, len);
-  if (idx >= 0)
-    return addCode(VAL_STACK, idx);
-
-  // Global variables
-  return addCode(VAL_VAR, varIndex(name, len));
+  // Variables
+  idxType idx;
+  CHECK(idx = getVar(name, len));
+  return addCode(varLevel[idx] ? VAL_STACK : VAL_VAR, varIndex[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -650,6 +664,21 @@ static int parsePrefix(int level)
 }
 
 //-----------------------------------------------------------------------------
+static int parseDim()
+{
+  const char* name;
+  int         len;
+  idxType     idx;
+  ENSURE(*s != '$', ERR_VAR_NAME);
+  CHECK(len = namecon(&name));
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
+
+  CHECK(idx = addVar(name, len, level));
+  varIndex[idx] = sp;
+  return addInt(0);
+}
+
+//-----------------------------------------------------------------------------
 static int parsePrint()
 {
   int cnt = 0;
@@ -669,15 +698,15 @@ static int parsePrint()
 //-----------------------------------------------------------------------------
 static int parseAssign(const char* name, int len)
 {
+  bool reg = (name[0] == '$');
   idxType idx;
+  CHECK(idx = reg ? regIndex(name, len) : getOrAddVar(name, len));
   CHECK(parseExpr(0));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
 
-  if (name[0] == '$')
-    return addCode(CMD_LET_REG, regIndex(name, len));
-  if ((idx = localIndex(name, len)) >= 0)
-    return addCode(CMD_LET_LCL, idx);
-  return addCode(CMD_LET_GBL, varIndex(name, len));
+  if (reg)
+    return addCode(CMD_LET_REG, idx);
+  return addCode(varLevel[idx] ? CMD_LET_LCL : CMD_LET_GBL, varIndex[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -782,18 +811,24 @@ static int parseDo()
 //-----------------------------------------------------------------------------
 static int parseFor()
 {
-  idxType hdr;
-  int varIdx;
-  sCodeIdx cond;
+  idxType     hdr;
+  sCodeIdx    cond;
+  int         varIdx;
+  const char* name;
+  int         len;
 
   // TODO: allow register or local variables
-  CHECK(varIdx = parseVar());
+
+  level++;
+  ENSURE(*s != '$', ERR_VAR_NAME);
+  CHECK(len = namecon(&name));
+  varIdx = getOrAddVar(name, len);
   ENSURE(chrcon('='), ERR_ASSIGN);
   CHECK(parseExpr(0));
-  CHECK(addCode(CMD_LET_GBL, varIdx));
+  CHECK(addCode(varLevel[varIdx] ? CMD_LET_LCL : CMD_LET_GBL, varIndex[varIdx]));
   ENSURE(keycon("TO"), ERR_FOR_TO);
   CHECK(hdr = sys->getCode(NULL, NEXT_CODE_IDX));
-  CHECK(addCode(VAL_VAR, varIdx));
+  CHECK(addCode(varLevel[varIdx] ? VAL_STACK : VAL_VAR, varIndex[varIdx]));
   CHECK(parseExpr(0));
   CHECK(addCode(OP_LTEQ, 0));
   CHECK(newCode(&cond, CMD_IF));
@@ -804,12 +839,16 @@ static int parseFor()
 
   ENSURE(keycon("NEXT"), ERR_FOR_NEXT);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
-  CHECK(addCode(VAL_VAR, varIdx));
+  CHECK(addCode(varLevel[varIdx] ? VAL_STACK : VAL_VAR, varIndex[varIdx]));
   CHECK(addCode(OP_PLUS, 0));
-  CHECK(addCode(CMD_LET_GBL, varIdx));
+  CHECK(addCode(varLevel[varIdx] ? CMD_LET_LCL : CMD_LET_GBL, varIndex[varIdx]));
   CHECK(addCode(CMD_GOTO, hdr));
   cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
   CHECK(sys->setCode(&cond));
+
+  idxType cnt = clrVar(level--);
+  if (cnt > 0)
+    addCode(CMD_POP, cnt - 1);
   return 0;
 }
 
@@ -826,11 +865,13 @@ static int parseSub()
 {
   sCodeIdx skip;
   idxType idx;
+  idxType varIdx;
   int argc = 0;
   const char* name;
   int len;
+  idxType oldSp = sp;
 
-  ENSURE(localName[0][0] == '\0', ERR_NESTED_SUB);
+  ENSURE(level == 0, ERR_NESTED_SUB);
 
   CHECK(len = namecon(&name));
   ENSURE(svcIndex(name, len) < 0, ERR_SUB_CONFLICT);
@@ -840,40 +881,40 @@ static int parseSub()
   CHECK(newCode(&skip, CMD_GOTO));
 
   subLabel[idx] = sys->getCode(NULL, NEXT_CODE_IDX);
-  memcpy(localName[0], name, len); if (len < MAX_NAME) localName[0][len] = '\0';
+  CHECK(varIdx = addVar(name, len, 1));
 
   ENSURE(chrcon('('), ERR_BRACKETS_MISS);
   if (*s != ')')
   {
     CHECK(len = namecon(&name));
     argc++;
-    memcpy(localName[argc], name, len); if (len < MAX_NAME) localName[argc][len] = '\0';
+    CHECK(varIdx = addVar(name, len, 1));
   }
   while(chrcon(','))
   {
     CHECK(len = namecon(&name));
     argc++;
-    memcpy(localName[argc], name, len); if (len < MAX_NAME) localName[argc][len] = '\0';
+    CHECK(varIdx = addVar(name, len, 1));
   }
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
 
+  for (int i = -argc; i <= 0; i++)
+    varIndex[varIdx + i] = i - 1;
   subArgc[idx] = argc;
-  sp = argc + 2;
+  sp = 0;
 
+  level++;
   CHECK(parseBlock());
+  CHECK(clrVar(level--)); // don't pop, this is done with return
 
   ENSURE(keycon("ENDSUB"), ERR_END_SUB_EXP);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   CHECK(addCode(CMD_RETURN, argc));
+  sp = oldSp;
 
   CHECK(skip.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
-  CHECK(sys->setCode(&skip));
-
-  // Clean up local variables
-  for (int i = 0; i < ARRAY_SIZE(localName); i++)
-    localName[i][0] = '\0';
-  return 0;
+  return sys->setCode(&skip);
 }
 
 //-----------------------------------------------------------------------------
@@ -899,6 +940,8 @@ static int parseStmt(void)
 
   while (chrcon('\n'));
 
+  if (keycon("DIM"))
+    return parseDim();
   if (keycon("PRINT"))
     return parsePrint();
   if (keycon("GOTO"))
@@ -934,6 +977,7 @@ static int parseStmt(void)
 //-----------------------------------------------------------------------------
 static int parseBlock(void)
 {
+  level++;
   while (1)
   {
     if (chrcon('\n'))
@@ -947,6 +991,9 @@ static int parseBlock(void)
         keycmp("EOF") ||
         (*s == '\0'))
     {
+      idxType cnt = clrVar(level--);
+      if (cnt > 0)
+        addCode(CMD_POP, cnt - 1);
       return 0;
     }
 
@@ -961,6 +1008,7 @@ int parseAll(const sSys* system, int* errline, int* errcol)
 {
   sys = system;
   readChars(0, true);
+  level = -1;
 
   int err;
   if (((err = parseBlock()                 ) >= 0) &&
@@ -968,9 +1016,12 @@ int parseAll(const sSys* system, int* errline, int* errcol)
       ((err = addCode(CMD_END, 0)          ) >= 0))
     return 0;
 
-  for (int i = 1; i < READ_AHEAD_BUF_SIZE && s[i] != '\n'; i++)
-    putchar(s[i]);
-  putchar('\n');
+  if (s[0] != '\n') // If not EOL, finish line
+  {
+    for (int i = 1; i < READ_AHEAD_BUF_SIZE && s[i] != '\n'; i++)
+      putchar(s[i]);
+    putchar('\n');
+  }
 
   if (errline)
     *errline = lineNum;
