@@ -16,8 +16,8 @@ typedef enum
 {                   // Code    Linker    Arg       Stack
   CMD_INVALID = 0,  //  X                -         -
   CMD_PRINT,        //  X                <cnt>     -1-<cnt>
-  CMD_LET_GBL,      //  X                <var>     -1
-  CMD_LET_LCL,      //  X                <offset>  -1
+  CMD_LET_GOBAL,    //  X                <var>     -1
+  CMD_LET_LOCAL,    //  X                <offset>  -1
   CMD_LET_REG,      //  X                <reg>     -1
   CMD_IF,           //  X                <lbl>     -1
   CMD_GOTO,         //  X                <lbl>     -
@@ -46,12 +46,12 @@ typedef enum
   OP_IDIV,          //  X                -         -2+1
   OP_POW,           //  X                -         -2+1
   OP_SIGN,          //  X                -         -1+1
-  VAL_STRING,       //  X                <str>     +1
   VAL_INTEGER,      //  X                <int>     +1
   VAL_FLOAT,        //  X                <float>   +1
-  VAL_VAR,          //  X                <var>     +1
+  VAL_STRING,       //  X                <str>     +1
+  VAL_GLOBAL,       //  X                <var>     +1
+  VAL_LOCAL,        //  X                <offset>  +1
   VAL_REG,          //  X                <reg>     +1
-  VAL_STACK,        //  X                <offset>  +1
   VAL_LABEL,        //                   <lbl>     -
 } eOp;
 
@@ -67,19 +67,19 @@ typedef struct sCode
   eOp           op;
   union
   {
-    iType       iValue;
-    fType       fValue;
     idxType     param;    // var (VAR, LET), reg (REG, SET), lbl (IF, GOTO, GOSUB)
-    struct
-    {
-      idxType   lbl;      // return address
-      idxType   fp;       // frame pointer
-    } lbl;
-    struct
-    {
-      idxType   start;
-      sLenType  len;
-    } str;
+    iType       iValue;   // VAL_INTEGER
+    fType       fValue;   // VAL_FLOAT
+    struct                // VAL_STRING
+    {                     //
+      idxType   start;    // - start address
+      sLenType  len;      // - length
+    } str;                //
+    struct                // VAL_LABEL
+    {                     //
+      idxType   lbl;      // - return address
+      idxType   fp;       // - frame pointer
+    } lbl;                //
   };
 } sCode;
 

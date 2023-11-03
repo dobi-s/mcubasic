@@ -10,44 +10,44 @@ static const char* opStr(eOp op)
 {
   switch (op)
   {
-    case CMD_PRINT:   return "Print";
-    case CMD_LET_GBL: return "LetGbl";
-    case CMD_LET_LCL: return "LetLcl";
-    case CMD_LET_REG: return "LetReg";
-    case CMD_IF:      return "If";
-    case CMD_GOTO:    return "GoTo";
-    case CMD_GOSUB:   return "GoSub";
-    case CMD_RETURN:  return "Return";
-    case CMD_POP:     return "Pop";
-    case CMD_NOP:     return "Nop";
-    case CMD_END:     return "End";
-    case CMD_SVC:     return "Svc";
-    case LNK_GOTO:    return "GoTo*";
-    case LNK_GOSUB:   return "GoSub*";
-    case OP_NEQ:      return "<>";
-    case OP_LTEQ:     return "<=";
-    case OP_GTEQ:     return ">=";
-    case OP_LT:       return "<";
-    case OP_GT:       return ">";
-    case OP_EQUAL:    return "=";
-    case OP_OR:       return "Or";
-    case OP_AND:      return "And";
-    case OP_NOT:      return "Not ";
-    case OP_PLUS:     return "+";
-    case OP_MINUS:    return "-";
-    case OP_MOD:      return "Mod";
-    case OP_MULT:     return "*";
-    case OP_DIV:      return "/";
-    case OP_IDIV:     return "\\";
-    case OP_POW:      return "^";
-    case OP_SIGN:     return "-";
-    case VAL_STRING:  return "STR";
-    case VAL_INTEGER: return "INT";
-    case VAL_FLOAT:   return "FLT";
-    case VAL_VAR:     return "VAR";
-    case VAL_REG:     return "REG";
-    case VAL_STACK:   return "STK";
-    default:          return "(?)";
+    case CMD_PRINT:     return "Print";
+    case CMD_LET_GOBAL: return "LetGobal";
+    case CMD_LET_LOCAL: return "LetLocal";
+    case CMD_LET_REG:   return "LetReg";
+    case CMD_IF:        return "If";
+    case CMD_GOTO:      return "GoTo";
+    case CMD_GOSUB:     return "GoSub";
+    case CMD_RETURN:    return "Return";
+    case CMD_POP:       return "Pop";
+    case CMD_NOP:       return "Nop";
+    case CMD_END:       return "End";
+    case CMD_SVC:       return "Svc";
+    case LNK_GOTO:      return "GoTo*";
+    case LNK_GOSUB:     return "GoSub*";
+    case OP_NEQ:        return "<>";
+    case OP_LTEQ:       return "<=";
+    case OP_GTEQ:       return ">=";
+    case OP_LT:         return "<";
+    case OP_GT:         return ">";
+    case OP_EQUAL:      return "=";
+    case OP_OR:         return "Or";
+    case OP_AND:        return "And";
+    case OP_NOT:        return "Not ";
+    case OP_PLUS:       return "+";
+    case OP_MINUS:      return "-";
+    case OP_MOD:        return "Mod";
+    case OP_MULT:       return "*";
+    case OP_DIV:        return "/";
+    case OP_IDIV:       return "\\";
+    case OP_POW:        return "^";
+    case OP_SIGN:       return "-";
+    case VAL_INTEGER:   return "INT";
+    case VAL_FLOAT:     return "FLT";
+    case VAL_STRING:    return "STR";
+    case VAL_GLOBAL:    return "GOBAL";
+    case VAL_LOCAL:     return "LOCAL";
+    case VAL_REG:       return "REG";
+    default:            return "(?)";
   }
 }
 
@@ -59,8 +59,8 @@ static void printCmd(idxType i, sCode* c)
     case CMD_INVALID:
       break;
     case CMD_PRINT:
-    case CMD_LET_GBL:
-    case CMD_LET_LCL:
+    case CMD_LET_GOBAL:
+    case CMD_LET_LOCAL:
     case CMD_LET_REG:
     case CMD_IF:
     case CMD_GOTO:
@@ -70,10 +70,10 @@ static void printCmd(idxType i, sCode* c)
     case CMD_RETURN:
     case CMD_POP:
     case CMD_SVC:
-    case VAL_VAR:
+    case VAL_GLOBAL:
+    case VAL_LOCAL:
     case VAL_REG:
-    case VAL_STACK:
-      printf("%3d: %-7s (%5d)", i, opStr(c->op), c->param);
+      printf("%3d: %-8s (%5d)", i, opStr(c->op), c->param);
       break;
     case CMD_NOP:
     case CMD_END:
@@ -94,16 +94,16 @@ static void printCmd(idxType i, sCode* c)
     case OP_POW:
     case OP_NOT:
     case OP_SIGN:
-      printf("%3d: %-7s (     )", i, opStr(c->op));
-      break;
-    case VAL_STRING:
-      printf("%3d: %-7s (%2d/%2d)", i, opStr(c->op), c->str.start, c->str.len);
+      printf("%3d: %-8s (     )", i, opStr(c->op));
       break;
     case VAL_INTEGER:
-      printf("%3d: %-7s (%5d)", i, opStr(c->op), c->iValue);
+      printf("%3d: %-8s (%5d)", i, opStr(c->op), c->iValue);
       break;
     case VAL_FLOAT:
-      printf("%3d: %-7s (%5.1f)", i, opStr(c->op), c->fValue);
+      printf("%3d: %-8s (%5.1f)", i, opStr(c->op), c->fValue);
+      break;
+    case VAL_STRING:
+      printf("%3d: %-8s (%2d/%2d)", i, opStr(c->op), c->str.start, c->str.len);
       break;
     default:
       printf("%3d: ? %3d ?        ", i, c->op);
@@ -196,24 +196,24 @@ void debugPrintRaw(const sSys* sys)
 }
 
 //-----------------------------------------------------------------------------
-void debugState(sCodeIdx* code, sCode* stack, idxType sp)
+void debugState(sCodeIdx* code, sCode* stack, idxType sp, idxType fp)
 {
   printCmd(code->idx, &code->code);
-  printf(" %3d:", sp);
+  printf(" %3d/%3d:", fp, sp);
   for (int i = 0; i < sp; i++)
     switch (stack[i].op)
     {
-      case VAL_STRING:
-        printf(" [Str %3d %3d]", stack[i].str.start, stack[i].str.len);
-        break;
       case VAL_INTEGER:
         printf(" [Int %3d]", stack[i].iValue);
         break;
       case VAL_FLOAT:
         printf(" [Flt %.3f]", stack[i].fValue);
         break;
+      case VAL_STRING:
+        printf(" [Str %3d %3d]", stack[i].str.start, stack[i].str.len);
+        break;
       case VAL_LABEL:
-        printf(" [Lbl %3d]", stack[i].param);
+        printf(" [Lbl %3d %3d]", stack[i].lbl.lbl, stack[i].lbl.fp);
         break;
     }
   printf("\n");

@@ -55,7 +55,7 @@ static const sOperators operators[] =
   { 3, "NOT ",  OP_NOT   },
   { 4, "+",     OP_PLUS  },
   { 4, "-",     OP_MINUS },
-  { 5, "MOD ",  OP_MOD   },
+  { 5, " MOD",  OP_MOD   },
   { 5, "*",     OP_MULT  },
   { 5, "/",     OP_DIV   },
   { 5, "\\",    OP_IDIV  },
@@ -151,6 +151,7 @@ static bool isKeyword(const char* str, int len)
     { "OR",     2 },
     { "PRINT",  5 },
     { "REM",    3 },
+    { "RETURN", 6 },
     { "STEP",   4 },
     { "SUB",    3 },
     { "THEN",   4 },
@@ -289,16 +290,40 @@ static int getOrAddVar(const char* name, int len)
 static int clrVar(int level)
 {
   int cnt = 0;
-
   for (int idx = 0; idx < ARRAY_SIZE(varName); idx++)
   {
     if (varName[idx][0] == '\0' || varLevel[idx] < level)
       continue;
-
     varName[idx][0] = '\0';
     cnt++;
   }
   return cnt;
+}
+
+//-----------------------------------------------------------------------------
+static int regIndex(const char* name, int len)
+{
+  for (int idx = 0; idx < MAX_REG_NUM; idx++)
+  {
+    if ((sys->regs[idx].name                         ) &&
+        (sys->regs[idx].name[len] == '\0'            ) &&
+        (memcmp(name, sys->regs[idx].name, len) == 0))
+      return idx;
+  }
+  return ERR_REG_NOT_FOUND;
+}
+
+//-----------------------------------------------------------------------------
+static int svcIndex(const char* name, int len)
+{
+  for (int idx = 0; idx < MAX_SVC_NUM; idx++)
+  {
+    if ((sys->svcs[idx].name                        ) &&
+        (sys->svcs[idx].name[len] == '\0'           ) &&
+        (memcmp(name, sys->svcs[idx].name, len) == 0))
+      return idx;
+  }
+  return ERR_SUB_NOT_FOUND;
 }
 
 //-----------------------------------------------------------------------------
@@ -327,32 +352,6 @@ static int subIndex(const char* name, int len)
 
   // no free slot found -> error
   return ERR_SUB_COUNT;
-}
-
-//-----------------------------------------------------------------------------
-static int regIndex(const char* name, int len)
-{
-  for (int idx = 0; idx < MAX_REG_NUM; idx++)
-  {
-    if ((sys->regs[idx].name                         ) &&
-        (sys->regs[idx].name[len] == '\0'            ) &&
-        (memcmp(name, sys->regs[idx].name, len) == 0))
-      return idx;
-  }
-  return ERR_REG_NOT_FOUND;
-}
-
-//-----------------------------------------------------------------------------
-static int svcIndex(const char* name, int len)
-{
-  for (int idx = 0; idx < MAX_SVC_NUM; idx++)
-  {
-    if ((sys->svcs[idx].name                        ) &&
-        (sys->svcs[idx].name[len] == '\0'           ) &&
-        (memcmp(name, sys->svcs[idx].name, len) == 0))
-      return idx;
-  }
-  return ERR_SUB_NOT_FOUND;
 }
 
 //-----------------------------------------------------------------------------
@@ -393,17 +392,17 @@ static void trackStack(eOp op, int param)
   switch (op)
   {
     case CMD_PRINT:
-    case CMD_RETURN:
     case CMD_POP:
-      sp -= 1+param;
+      sp -= param + 1;
       break;
+    case CMD_RETURN:
     case CMD_GOSUB:
     case LNK_GOSUB:
     case CMD_SVC:
       // manual
       break;
-    case CMD_LET_GBL:
-    case CMD_LET_LCL:
+    case CMD_LET_GOBAL:
+    case CMD_LET_LOCAL:
     case CMD_LET_REG:
     case CMD_IF:
     case OP_NEQ:
@@ -421,15 +420,15 @@ static void trackStack(eOp op, int param)
     case OP_DIV:
     case OP_IDIV:
     case OP_POW:
-      sp -= 1;
+      sp--;
       break;
-    case VAL_STRING:
     case VAL_INTEGER:
     case VAL_FLOAT:
-    case VAL_VAR:
+    case VAL_STRING:
+    case VAL_GLOBAL:
+    case VAL_LOCAL:
     case VAL_REG:
-    case VAL_STACK:
-      sp += 1;
+      sp++;
       break;
   }
 }
@@ -451,7 +450,7 @@ static int addCode(eOp op, int param)
     .op    = op,
     .param = param
   };
-  if (op != VAL_STACK && op != CMD_LET_LCL)
+  if (op != VAL_LOCAL && op != CMD_LET_LOCAL) // Local var can have neg param
     CHECK(param);
   trackStack(op, param);
   return sys->addCode(&code);
@@ -508,15 +507,11 @@ static int parseFunc(const char* name, int len, bool sub)
 
   CHECK(addInt(0));  // Return value
   if (*s != end)
-  {
-    parseExpr(0);
-    argc++;
-  }
-  while(chrcon(','))
-  {
-    parseExpr(0);
-    argc++;
-  }
+    do
+    {
+      parseExpr(0);
+      argc++;
+    } while (chrcon(','));
   ENSURE(chrcon(end), sub ? ERR_NEWLINE : ERR_BRACKETS_MISS);
 
   if (svc)
@@ -532,7 +527,7 @@ static int parseFunc(const char* name, int len, bool sub)
   sp -= argc;
 
   if (sub)
-    CHECK(addCode(CMD_POP, 0));  // Consume return value
+    CHECK(addCode(CMD_POP, 0));  // Return value not used -> consume
   return 0;
 }
 
@@ -614,7 +609,7 @@ static int parseVal(int level)
   // Variables
   idxType idx;
   CHECK(idx = getVar(name, len));
-  return addCode(varLevel[idx] ? VAL_STACK : VAL_VAR, varIndex[idx]);
+  return addCode(varLevel[idx] ? VAL_LOCAL : VAL_GLOBAL, varIndex[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -706,7 +701,7 @@ static int parseAssign(const char* name, int len)
 
   if (reg)
     return addCode(CMD_LET_REG, idx);
-  return addCode(varLevel[idx] ? CMD_LET_LCL : CMD_LET_GBL, varIndex[idx]);
+  return addCode(varLevel[idx] ? CMD_LET_LOCAL : CMD_LET_GOBAL, varIndex[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -717,13 +712,6 @@ static int parseGoto(eOp op)
   CHECK(len = namecon(&name));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   return addCode(op, lblIndex(name, len, -1));
-}
-
-//-----------------------------------------------------------------------------
-static int parseReturn()
-{
-  ENSURE(chrcon('\n'), ERR_NEWLINE);
-  return addCode(CMD_RETURN, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -814,21 +802,25 @@ static int parseFor()
   idxType     hdr;
   sCodeIdx    cond;
   int         varIdx;
+  eOp         varSet;
+  eOp         varGet;
   const char* name;
   int         len;
-
-  // TODO: allow register or local variables
 
   level++;
   ENSURE(*s != '$', ERR_VAR_NAME);
   CHECK(len = namecon(&name));
   varIdx = getOrAddVar(name, len);
+  varGet = varLevel[varIdx] ? VAL_LOCAL : VAL_GLOBAL;
+  varSet = varLevel[varIdx] ? CMD_LET_LOCAL : CMD_LET_GOBAL;
+  varIdx = varIndex[varIdx];
+
   ENSURE(chrcon('='), ERR_ASSIGN);
   CHECK(parseExpr(0));
-  CHECK(addCode(varLevel[varIdx] ? CMD_LET_LCL : CMD_LET_GBL, varIndex[varIdx]));
+  CHECK(addCode(varSet, varIdx));
   ENSURE(keycon("TO"), ERR_FOR_TO);
   CHECK(hdr = sys->getCode(NULL, NEXT_CODE_IDX));
-  CHECK(addCode(varLevel[varIdx] ? VAL_STACK : VAL_VAR, varIndex[varIdx]));
+  CHECK(addCode(varGet, varIdx));
   CHECK(parseExpr(0));
   CHECK(addCode(OP_LTEQ, 0));
   CHECK(newCode(&cond, CMD_IF));
@@ -839,9 +831,9 @@ static int parseFor()
 
   ENSURE(keycon("NEXT"), ERR_FOR_NEXT);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
-  CHECK(addCode(varLevel[varIdx] ? VAL_STACK : VAL_VAR, varIndex[varIdx]));
+  CHECK(addCode(varGet, varIdx));
   CHECK(addCode(OP_PLUS, 0));
-  CHECK(addCode(varLevel[varIdx] ? CMD_LET_LCL : CMD_LET_GBL, varIndex[varIdx]));
+  CHECK(addCode(varSet, varIdx));
   CHECK(addCode(CMD_GOTO, hdr));
   cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
   CHECK(sys->setCode(&cond));
@@ -863,55 +855,50 @@ static int parseRem()
 //-----------------------------------------------------------------------------
 static int parseSub()
 {
-  sCodeIdx skip;
-  idxType idx;
-  idxType varIdx;
-  int argc = 0;
+  sCodeIdx    skip;
+  idxType     subIdx;
+  idxType     varIdx;
+  idxType     oldSp = sp;
+  int         argc = 0;
   const char* name;
-  int len;
-  idxType oldSp = sp;
+  int         len;
 
   ENSURE(level == 0, ERR_NESTED_SUB);
 
   CHECK(len = namecon(&name));
   ENSURE(svcIndex(name, len) < 0, ERR_SUB_CONFLICT);
-  idx = subIndex(name, len);
-  ENSURE(subLabel[idx] == -1, ERR_SUB_REDEF);
+  subIdx = subIndex(name, len);
+  ENSURE(subLabel[subIdx] == -1, ERR_SUB_REDEF);
 
   CHECK(newCode(&skip, CMD_GOTO));
 
-  subLabel[idx] = sys->getCode(NULL, NEXT_CODE_IDX);
+  subLabel[subIdx] = sys->getCode(NULL, NEXT_CODE_IDX);
   CHECK(varIdx = addVar(name, len, 1));
 
   ENSURE(chrcon('('), ERR_BRACKETS_MISS);
   if (*s != ')')
-  {
-    CHECK(len = namecon(&name));
-    argc++;
-    CHECK(varIdx = addVar(name, len, 1));
-  }
-  while(chrcon(','))
-  {
-    CHECK(len = namecon(&name));
-    argc++;
-    CHECK(varIdx = addVar(name, len, 1));
-  }
+    do
+    {
+      CHECK(len = namecon(&name));
+      argc++;
+      CHECK(varIdx = addVar(name, len, 1));
+    } while(chrcon(','));
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
 
   for (int i = -argc; i <= 0; i++)
     varIndex[varIdx + i] = i - 1;
-  subArgc[idx] = argc;
-  sp = 0;
+  subArgc[subIdx] = argc;
 
+  sp = 0;
   level++;
   CHECK(parseBlock());
-  CHECK(clrVar(level--)); // don't pop, this is done with return
+  CHECK(clrVar(level--)); // don't pop, this is done by return
+  sp = oldSp;
 
   ENSURE(keycon("ENDSUB"), ERR_END_SUB_EXP);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   CHECK(addCode(CMD_RETURN, argc));
-  sp = oldSp;
 
   CHECK(skip.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
   return sys->setCode(&skip);
@@ -1023,10 +1010,8 @@ int parseAll(const sSys* system, int* errline, int* errcol)
     putchar('\n');
   }
 
-  if (errline)
-    *errline = lineNum;
-  if (errcol)
-    *errcol = lineCol;
+  if (errline) *errline = lineNum;
+  if (errcol)  *errcol  = lineCol;
   return err;
 }
 

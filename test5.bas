@@ -1,7 +1,9 @@
-Sub abc(x,y,z)
-  abc = x+y
+Sub abc(x)
+  If x > 0 Then
+    abc = abc(x-1) + x
+  Else
+    abc = 0
+  EndIf
 EndSub
 
-a = 2
-a = a + abc (3, 4, 5)
-Print a
+Print abc(6)
