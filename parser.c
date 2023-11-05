@@ -100,6 +100,28 @@ int lineCol = 1;
 //=============================================================================
 // Private functions
 //=============================================================================
+static char readCharsWithoutComment(void)
+{
+  static bool quote = false;
+  char c = sys->getNextChar();
+  switch (c)
+  {
+    case '"':
+      quote = !quote;
+      break;
+    case '\n':
+      quote = false;
+      break;
+    case '\'':
+      if (!quote)
+        while (c != '\n')
+          c = sys->getNextChar();
+      break;
+  }
+  return c;
+}
+
+//-----------------------------------------------------------------------------
 static void readChars(int cnt, bool skipSpace)
 {
   static char buffer[READ_AHEAD_BUF_SIZE];
@@ -108,7 +130,7 @@ static void readChars(int cnt, bool skipSpace)
   {
     buffer[0] = '\n';
     for (int i = 1; i < sizeof(buffer); i++)
-      buffer[i] = sys->getNextChar();
+      buffer[i] = readCharsWithoutComment();
     s = &buffer[1];
     putchar(*s);
   }
@@ -117,7 +139,7 @@ static void readChars(int cnt, bool skipSpace)
   {
     lineCol = (*s == '\n') ? (++lineNum, 1) : lineCol + 1;
     memmove(buffer, buffer+1, sizeof(buffer) - 1);
-    buffer[sizeof(buffer)-1] = sys->getNextChar();
+    buffer[sizeof(buffer)-1] = readCharsWithoutComment();
     putchar(*s);
   }
 }

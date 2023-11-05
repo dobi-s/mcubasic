@@ -1,3 +1,5 @@
+' Print "Hallo"
+
 Sub abc(x)
   If x > 0 Then
     abc = abc(x-1) + x
@@ -7,3 +9,4 @@ Sub abc(x)
 End Sub
 
 Print abc(6)
+Print "'qoute'" '; Kommentar
