@@ -3,7 +3,7 @@ Sub abc(x)
     abc = abc(x-1) + x
   Else
     abc = 0
-  EndIf
-EndSub
+  End If
+End Sub
 
 Print abc(6)

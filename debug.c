@@ -133,7 +133,7 @@ const char* errmsg(int err)
     case ERR_NUM_INV:         return "Invalid number";
     case ERR_NEWLINE:         return "Newline expected";
     case ERR_IF_THEN:         return "THEN expected";
-    case ERR_IF_ENDIF:        return "ENDIF expected";
+    case ERR_IF_ENDIF:        return "END IF expected";
     case ERR_DO_LOOP:         return "LOOP expected";
     case ERR_ASSIGN:          return "Assignment (=) expected";
     case ERR_FOR_TO:          return "TO expected";
@@ -152,7 +152,7 @@ const char* errmsg(int err)
     case ERR_SUB_CONFLICT:    return "Sub name conflicts with buildin function";
     case ERR_SUB_COUNT:       return "Too many subs";
     case ERR_SUB_REDEF:       return "Redefined sub";
-    case ERR_END_SUB_EXP:     return "EndSub expected";
+    case ERR_END_SUB_EXP:     return "END SUB expected";
     case ERR_LOCAL_NOT_FOUND: return "Local variable not found";
     case ERR_NOT_IMPL:        return "Not implemented yet";
     default:                  return "(unknown)";

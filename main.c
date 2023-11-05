@@ -58,14 +58,6 @@ static char getNextChar(void)
 }
 
 //-----------------------------------------------------------------------------
-static int showError(int err, int line, int col)
-{
-  printf("%*s\n", col, "^");
-  printf("ERROR %d in Line %d, Col %d: %s\n", err, line, col, errmsg(err));
-  return err;
-}
-
-//-----------------------------------------------------------------------------
 static int addCode(const sCode* code)
 {
   int idx;
@@ -169,14 +161,25 @@ int main()
 
   printf("=[ Start ]==================================================================\n");
 
-  int line, col;
-  int err = parseAll(&sys, &line, &col);
-  fclose(file);
-  if (err < 0)
-    return showError(err, line, col);
-  link(&sys);
+  int line, col, err;
 
-  optimize(&sys);
+  if ((err = parseAll(&sys, &line, &col)) < 0)
+  {
+   fclose(file);
+    printf("%*s\n", col, "^");
+    printf("ERROR %d in Line %d, Col %d: %s\n", err, line, col, errmsg(err));
+    return err;
+  }
+  if ((err = link(&sys)) < 0)
+  {
+    printf("LINK ERROR %d: %s\n", err, errmsg(err));
+    return err;
+  }
+  if ((err = optimize(&sys)) < 0)
+  {
+    printf("OPTIMIZE ERROR %d: %s\n", err, errmsg(err));
+    return err;
+  }
 
   printf("\n----------------------------------------------------------------------------\n");
   debugPrintRaw(&sys);

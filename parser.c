@@ -136,8 +136,6 @@ static bool isKeyword(const char* str, int len)
     { "DO",     2 },
     { "ELSE",   4 },
     { "END",    3 },
-    { "ENDIF",  5 },
-    { "ENDSUB", 6 },
     { "EOF",    3 },
     { "EXIT",   4 },
     { "FOR",    3 },
@@ -151,7 +149,6 @@ static bool isKeyword(const char* str, int len)
     { "OR",     2 },
     { "PRINT",  5 },
     { "REM",    3 },
-    { "RETURN", 6 },
     { "STEP",   4 },
     { "SUB",    3 },
     { "THEN",   4 },
@@ -739,7 +736,7 @@ static int parseIf()
     {
       CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
     }
-    ENSURE(keycon("ENDIF"), ERR_IF_ENDIF);
+    ENSURE(keycon("IF"), ERR_IF_ENDIF);
     ENSURE(chrcon('\n'), ERR_NEWLINE);
   }
   else  // single line IF (no ELSE allowed)
@@ -896,7 +893,7 @@ static int parseSub()
   CHECK(clrVar(level--)); // don't pop, this is done by return
   sp = oldSp;
 
-  ENSURE(keycon("ENDSUB"), ERR_END_SUB_EXP);
+  ENSURE(keycon("SUB"), ERR_END_SUB_EXP);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   CHECK(addCode(CMD_RETURN, argc));
 
@@ -970,22 +967,30 @@ static int parseBlock(void)
     if (chrcon('\n'))
       continue; // Skip empty lines
 
-    if (keycmp("ELSE") ||
-        keycmp("ENDIF") ||
-        keycmp("ENDSUB") ||
-        keycmp("NEXT") ||
-        keycmp("LOOP") ||
-        keycmp("EOF") ||
-        (*s == '\0'))
+    if (keycon("END"))
     {
-      idxType cnt = clrVar(level--);
-      if (cnt > 0)
-        addCode(CMD_POP, cnt - 1);
-      return 0;
+      if (keycmp("IF") || keycmp("SUB"))
+        break;
+      CHECK(parseEnd());
+      continue;
+    }
+    else if (keycmp("ELSE") ||
+             keycmp("NEXT") ||
+             keycmp("LOOP") ||
+             keycmp("EOF") ||
+             (*s == '\0'))
+    {
+      break;
     }
 
     CHECK(parseStmt());
   }
+
+  // Exit block
+  idxType cnt = clrVar(level--);
+  if (cnt > 0)
+    addCode(CMD_POP, cnt - 1);
+  return 0;
 }
 
 //=============================================================================
