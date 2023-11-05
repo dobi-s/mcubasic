@@ -2,14 +2,9 @@ Dim x
 
 Sub abc(a, b)
   Dim y
-  If a = 2 Then
-    Print "exit"
-    Exit Sub
-  End If
-  Dim z
-  Print "sub"
+  Return a + b
 End Sub
 
-abc 1,2
-abc 2,3
-abc 3,4
+Print abc(1,2)
+Print abc(2,3)
+Print abc(3,4)

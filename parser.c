@@ -179,6 +179,7 @@ static bool isKeyword(const char* str, int len)
     { "OR",     2 },
     { "PRINT",  5 },
     { "REM",    3 },
+    { "RETURN", 6 },
     { "STEP",   4 },
     { "SUB",    3 },
     { "THEN",   4 },
@@ -772,6 +773,16 @@ static int parseExit()
 }
 
 //-----------------------------------------------------------------------------
+static int parseReturn()
+{
+  ENSURE(curArgc >= 0, ERR_EXIT_SUB);
+  CHECK(parseExpr(0));
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
+  CHECK(addCode(CMD_LET_LOCAL, -curArgc - 1));
+  return addCode(CMD_RETURN, curArgc);
+}
+
+//-----------------------------------------------------------------------------
 static int parseGoto()
 {
   const char* name;
@@ -1018,6 +1029,8 @@ static int parseStmt(void)
     return parsePrint();
   if (keycon("EXIT"))
     return parseExit();
+  if (keycon("RETURN"))
+    return parseReturn();
   if (keycon("GOTO"))
     return parseGoto();
   if (keycon("IF"))
