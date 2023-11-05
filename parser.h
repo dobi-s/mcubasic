@@ -39,6 +39,9 @@
 #define ERR_SUB_REDEF       -34   // Redefined sub
 #define ERR_END_SUB_EXP     -35   // EndSub expected
 #define ERR_LOCAL_NOT_FOUND -36   // Local variable not found
+#define ERR_EXIT_DO         -37   // Exit Do outside Do .. Loop
+#define ERR_EXIT_FOR        -38   // Exit For outside For .. Next
+#define ERR_EXIT_SUB        -39   // Exit Sub outside sub
 #define ERR_NOT_IMPL        -999  // Not implemented yet
 
 

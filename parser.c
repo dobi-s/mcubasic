@@ -89,6 +89,14 @@ static char    subName[MAX_SUB_NUM][MAX_NAME];
 static idxType subLabel[MAX_SUB_NUM];
 static idxType subArgc[MAX_SUB_NUM];
 
+static char    exitLabel[2] = "!";
+static idxType spAtBeginOfDo  = -1;
+static idxType spAtBeginOfFor = -1;
+static idxType exitDo  = -1;
+static idxType exitFor = -1;
+
+static int curArgc = -1;
+
 static int sp = 0;  // Stack pointer tracking
 static int level;
 
@@ -724,13 +732,53 @@ static int parseAssign(const char* name, int len)
 }
 
 //-----------------------------------------------------------------------------
-static int parseGoto(eOp op)
+static int parseExit()
+{
+  if (keycon("DO"))
+  {
+    ENSURE(spAtBeginOfDo >= 0, ERR_EXIT_DO);
+    if (exitDo < 0)
+    {
+      CHECK(exitDo = lblIndex(exitLabel, 2, -1));
+      exitLabel[1]++;
+    }
+    if (sp > spAtBeginOfDo)
+      CHECK(addCode(CMD_POP, sp - spAtBeginOfDo - 1));
+    CHECK(addCode(LNK_GOTO, exitDo));
+  }
+  else if (keycon("FOR"))
+  {
+    ENSURE(spAtBeginOfFor >= 0, ERR_EXIT_FOR);
+    if (exitFor < 0)
+    {
+      CHECK(exitFor = lblIndex(exitLabel, 2, -1));
+      exitLabel[1]++;
+    }
+    if (sp > spAtBeginOfFor)
+      CHECK(addCode(CMD_POP, sp - spAtBeginOfFor - 1));
+    CHECK(addCode(LNK_GOTO, exitFor));
+  }
+  else if (keycon("SUB"))
+  {
+    ENSURE(curArgc >= 0, ERR_EXIT_SUB);
+    CHECK(addCode(CMD_RETURN, curArgc));
+  }
+  else
+  {
+    return ERR_NOT_IMPL;
+  }
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int parseGoto()
 {
   const char* name;
   int len;
   CHECK(len = namecon(&name));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
-  return addCode(op, lblIndex(name, len, -1));
+  return addCode(LNK_GOTO, lblIndex(name, len, -1));
 }
 
 //-----------------------------------------------------------------------------
@@ -775,7 +823,9 @@ static int parseDo()
 {
   sCodeIdx top = { .idx = -1 };
   idxType hdr;
+  idxType oldSp = spAtBeginOfDo;
 
+  spAtBeginOfDo = sp;
   CHECK(hdr = sys->getCode(NULL, NEXT_CODE_IDX));
   if (keycon("WHILE"))
   {
@@ -812,6 +862,12 @@ static int parseDo()
     CHECK(top.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
     CHECK(sys->setCode(&top));
   }
+  if (exitDo >= 0)
+  {
+    CHECK(labelDst[exitDo] = sys->getCode(NULL, NEXT_CODE_IDX));
+    exitDo = -1;
+  }
+  spAtBeginOfDo = oldSp;
   return 0;
 }
 
@@ -825,6 +881,8 @@ static int parseFor()
   eOp         varGet;
   const char* name;
   int         len;
+  idxType     oldSp = spAtBeginOfFor;
+  spAtBeginOfFor = sp;
 
   level++;
   ENSURE(*s != '$', ERR_VAR_NAME);
@@ -860,6 +918,12 @@ static int parseFor()
   idxType cnt = clrVar(level--);
   if (cnt > 0)
     addCode(CMD_POP, cnt - 1);
+  if (exitFor >= 0)
+  {
+    CHECK(labelDst[exitFor] = sys->getCode(NULL, NEXT_CODE_IDX));
+    exitFor = -1;
+  }
+  spAtBeginOfFor = oldSp;
   return 0;
 }
 
@@ -878,11 +942,11 @@ static int parseSub()
   idxType     subIdx;
   idxType     varIdx;
   idxType     oldSp = sp;
-  int         argc = 0;
   const char* name;
   int         len;
 
   ENSURE(level == 0, ERR_NESTED_SUB);
+  curArgc = 0;
 
   CHECK(len = namecon(&name));
   ENSURE(svcIndex(name, len) < 0, ERR_SUB_CONFLICT);
@@ -899,15 +963,15 @@ static int parseSub()
     do
     {
       CHECK(len = namecon(&name));
-      argc++;
+      curArgc++;
       CHECK(varIdx = addVar(name, len, 1));
     } while(chrcon(','));
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
 
-  for (int i = -argc; i <= 0; i++)
+  for (int i = -curArgc; i <= 0; i++)
     varIndex[varIdx + i] = i - 1;
-  subArgc[subIdx] = argc;
+  subArgc[subIdx] = curArgc;
 
   sp = 0;
   level++;
@@ -917,7 +981,8 @@ static int parseSub()
 
   ENSURE(keycon("SUB"), ERR_END_SUB_EXP);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
-  CHECK(addCode(CMD_RETURN, argc));
+  CHECK(addCode(CMD_RETURN, curArgc));
+  curArgc = -1;
 
   CHECK(skip.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
   return sys->setCode(&skip);
@@ -934,8 +999,9 @@ static int parseEnd()
 static int parseLabel(const char* name, int len)
 {
   CHECK(lblIndex(name, len, sys->getCode(NULL, NEXT_CODE_IDX)));
-  if (!chrcon('\n'));
-  return parseStmt();
+  if (!chrcon('\n'))
+    return parseStmt();
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -950,8 +1016,10 @@ static int parseStmt(void)
     return parseDim();
   if (keycon("PRINT"))
     return parsePrint();
+  if (keycon("EXIT"))
+    return parseExit();
   if (keycon("GOTO"))
-    return parseGoto(LNK_GOTO);
+    return parseGoto();
   if (keycon("IF"))
     return parseIf();
   if (keycon("DO"))

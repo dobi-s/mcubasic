@@ -154,6 +154,9 @@ const char* errmsg(int err)
     case ERR_SUB_REDEF:       return "Redefined sub";
     case ERR_END_SUB_EXP:     return "END SUB expected";
     case ERR_LOCAL_NOT_FOUND: return "Local variable not found";
+    case ERR_EXIT_DO:         return "Exit Do outside Do .. Loop";
+    case ERR_EXIT_FOR:        return "Exit For outside For .. Next";
+    case ERR_EXIT_SUB:        return "Exit Sub outside sub";
     case ERR_NOT_IMPL:        return "Not implemented yet";
     default:                  return "(unknown)";
   }

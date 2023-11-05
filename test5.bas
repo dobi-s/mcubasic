@@ -1,12 +1,15 @@
-' Print "Hallo"
+Dim x
 
-Sub abc(x)
-  If x > 0 Then
-    abc = abc(x-1) + x
-  Else
-    abc = 0
+Sub abc(a, b)
+  Dim y
+  If a = 2 Then
+    Print "exit"
+    Exit Sub
   End If
+  Dim z
+  Print "sub"
 End Sub
 
-Print abc(6)
-Print "'qoute'" '; Kommentar
+abc 1,2
+abc 2,3
+abc 3,4
