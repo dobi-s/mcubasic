@@ -735,39 +735,31 @@ static int parseAssign(const char* name, int len)
 //-----------------------------------------------------------------------------
 static int parseExit()
 {
-  if (keycon("DO"))
+  if (keycon("SUB"))
   {
-    ENSURE(spAtBeginOfDo >= 0, ERR_EXIT_DO);
-    if (exitDo < 0)
-    {
-      CHECK(exitDo = lblIndex(exitLabel, 2, -1));
-      exitLabel[1]++;
-    }
-    if (sp > spAtBeginOfDo)
-      CHECK(addCode(CMD_POP, sp - spAtBeginOfDo - 1));
-    CHECK(addCode(LNK_GOTO, exitDo));
-  }
-  else if (keycon("FOR"))
-  {
-    ENSURE(spAtBeginOfFor >= 0, ERR_EXIT_FOR);
-    if (exitFor < 0)
-    {
-      CHECK(exitFor = lblIndex(exitLabel, 2, -1));
-      exitLabel[1]++;
-    }
-    if (sp > spAtBeginOfFor)
-      CHECK(addCode(CMD_POP, sp - spAtBeginOfFor - 1));
-    CHECK(addCode(LNK_GOTO, exitFor));
-  }
-  else if (keycon("SUB"))
-  {
+    ENSURE(chrcon('\n'), ERR_NEWLINE);
     ENSURE(curArgc >= 0, ERR_EXIT_SUB);
-    CHECK(addCode(CMD_RETURN, curArgc));
+    return addCode(CMD_RETURN, curArgc);
   }
+
+  idxType* exit;
+  if (keycon("DO"))
+    exit = &exitDo;
+  else if (keycon("FOR"))
+    exit = &exitFor;
   else
-  {
     return ERR_NOT_IMPL;
+
+  idxType spAtBegin = (exit == &exitDo) ? spAtBeginOfDo : spAtBeginOfFor;
+  ENSURE(spAtBegin >= 0, (exit == &exitDo) ? ERR_EXIT_DO : ERR_EXIT_FOR);
+  if (*exit < 0)
+  {
+    CHECK(*exit = lblIndex(exitLabel, 2, -1));
+    exitLabel[1]++;
   }
+  if (sp > spAtBegin)
+    CHECK(addCode(CMD_POP, sp - spAtBegin - 1));
+  CHECK(addCode(LNK_GOTO, *exit));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   return 0;
 }
