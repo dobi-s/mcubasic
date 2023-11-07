@@ -1,8 +1,7 @@
-Dim x
+Sub sleep(x)
+  xy = 1
+End Sub
 
-Do
-  Dim x
-  Exit Do
-Loop
-
-Print "Done"
+Print "Start"
+sleep 3000
+Print "Ende"

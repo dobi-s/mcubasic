@@ -25,13 +25,3 @@
 // Exec
 //-----------------------------------------------------------------------------
 #define STACK_SIZE          32    // Stack size [entries]
-
-// TODO:
-//
-// Combine subs and labels
-//
-// ----
-//
-// Split End-Keywords (eg "EndIf" -> "End If")
-//
-

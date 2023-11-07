@@ -976,7 +976,7 @@ static int parseSub()
     varIndex[varIdx + i] = i - 1;
   subArgc[subIdx] = curArgc;
 
-  sp = 0;
+  sp = 1;
   level++;
   CHECK(parseBlock());
   CHECK(clrVar(level--)); // don't pop, this is done by return
