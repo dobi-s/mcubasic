@@ -177,13 +177,27 @@ int exec(sSys* sys, idxType pc)
     case CMD_PRINT:
       CHECK(print(sys, code.code.param));
       return pc + 1;
-    case CMD_LET_GOBAL:
-      ENSURE(code.code.param >= 0 && code.code.param < sp, ERR_EXEC_VAR_INV);
-      memcpy(&stack[code.code.param], &stack[--sp], sizeof(stack[0]));
+    case CMD_LET_GLOBAL:
+      iValue = (code.code.param2 > 0) ? castInt(&stack[sp-2]) : 0;
+      if (code.code.param2 > 0) // Array
+      {
+        ENSURE(iValue >= 0 && iValue < code.code.param2, ERR_EXEC_OUT_BOUND);
+        memcpy(&stack[sp-2], &stack[sp-1], sizeof(stack[0]));
+        sp--;
+      }
+      ENSURE(code.code.param >= 0 && code.code.param + iValue < sp, ERR_EXEC_VAR_INV);
+      memcpy(&stack[code.code.param + iValue], &stack[--sp], sizeof(stack[0]));
       return pc + 1;
     case CMD_LET_LOCAL:
-      ENSURE(fp + code.code.param >= 0 && fp + code.code.param < sp, ERR_EXEC_VAR_INV);
-      memcpy(&stack[fp + code.code.param], &stack[--sp], sizeof(stack[0]));
+      iValue = (code.code.param2 > 0) ? castInt(&stack[sp-2]) : 0;
+      if (code.code.param2 > 0) // Array
+      {
+        ENSURE(iValue >= 0 && iValue < code.code.param2, ERR_EXEC_OUT_BOUND);
+        memcpy(&stack[sp-2], &stack[sp-1], sizeof(stack[0]));
+        sp--;
+      }
+      ENSURE(fp + code.code.param >= 0 && fp + code.code.param + iValue< sp, ERR_EXEC_VAR_INV);
+      memcpy(&stack[fp + code.code.param + iValue], &stack[--sp], sizeof(stack[0]));
       return pc + 1;
     case CMD_LET_REG:
       ENSURE(sp > 0, ERR_EXEC_STACK_UF);
@@ -309,12 +323,16 @@ int exec(sSys* sys, idxType pc)
       CHECK(pushCode(&code.code));
       return pc + 1;
     case VAL_GLOBAL:
-      ENSURE(code.code.param >= 0 && code.code.param < sp, ERR_EXEC_VAR_INV);
-      CHECK(pushCode(&stack[code.code.param]));
+      iValue = (code.code.param2 > 0) ? castInt(&stack[--sp]) : 0;
+      ENSURE(code.code.param2 == 0 || (iValue >= 0 && iValue < code.code.param2), ERR_EXEC_OUT_BOUND);
+      ENSURE(code.code.param >= 0 && code.code.param + iValue < sp, ERR_EXEC_VAR_INV);
+      CHECK(pushCode(&stack[code.code.param + iValue]));
       return pc + 1;
     case VAL_LOCAL:
-      ENSURE(fp + code.code.param >= 0 && fp + code.code.param < sp, ERR_EXEC_VAR_INV);
-      CHECK(pushCode(&stack[fp + code.code.param]));
+      iValue = (code.code.param2 > 0) ? castInt(&stack[--sp]) : 0;
+      ENSURE(code.code.param2 == 0 || (iValue >= 0 && iValue < code.code.param2), ERR_EXEC_OUT_BOUND);
+      ENSURE(fp + code.code.param >= 0 && fp + code.code.param + iValue < sp, ERR_EXEC_VAR_INV);
+      CHECK(pushCode(&stack[fp + code.code.param + iValue]));
       return pc + 1;
     case VAL_REG:
       CHECK(getReg(sys, &value, code.code.param));

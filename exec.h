@@ -19,6 +19,8 @@
 #define ERR_EXEC_OP_INV     -811  // Invalid operator
 #define ERR_EXEC_SVC_INV    -812  // Invalid supervisor call
 
+#define ERR_EXEC_OUT_BOUND  -813  // Index out of bound
+
 //=============================================================================
 // Functions
 //=============================================================================

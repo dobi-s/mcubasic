@@ -83,6 +83,7 @@ static const fParser parser[] =
 static char    varName[MAX_VAR_NUM][MAX_NAME];
 static idxType varIndex[MAX_VAR_NUM];
 static idxType varLevel[MAX_VAR_NUM];
+static idxType varDim[MAX_VAR_NUM];
 static char    labels[MAX_LABELS][MAX_NAME];
 static idxType labelDst[MAX_LABELS];
 static char    subName[MAX_SUB_NUM][MAX_NAME];
@@ -295,6 +296,7 @@ static int addVar(const char* name, int len, int level)
       if (len < MAX_NAME)
         varName[idx][len] = '\0';
       varLevel[idx] = level;
+      varDim[idx] = 0;
       return idx;
     }
   }
@@ -323,7 +325,10 @@ static int clrVar(int level)
     if (varName[idx][0] == '\0' || varLevel[idx] < level)
       continue;
     varName[idx][0] = '\0';
-    cnt++;
+    if (varDim[idx] > 0)
+      cnt += varDim[idx];
+    else
+      cnt++;
   }
   return cnt;
 }
@@ -415,7 +420,7 @@ static int lblIndex(const char* name, int len, int dst)
 }
 
 //-----------------------------------------------------------------------------
-static void trackStack(eOp op, int param)
+static void trackStack(eOp op, int param, int param2)
 {
   switch (op)
   {
@@ -429,8 +434,10 @@ static void trackStack(eOp op, int param)
     case CMD_SVC:
       // manual
       break;
-    case CMD_LET_GOBAL:
+    case CMD_LET_GLOBAL:
     case CMD_LET_LOCAL:
+      sp -= (param2 > 0) ? 2 : 1;
+      break;
     case CMD_LET_REG:
     case CMD_IF:
     case OP_NEQ:
@@ -453,10 +460,13 @@ static void trackStack(eOp op, int param)
     case VAL_INTEGER:
     case VAL_FLOAT:
     case VAL_STRING:
-    case VAL_GLOBAL:
-    case VAL_LOCAL:
     case VAL_REG:
       sp++;
+      break;
+    case VAL_GLOBAL:
+    case VAL_LOCAL:
+      if (param2 == 0)
+        sp++;
       break;
   }
 }
@@ -466,7 +476,7 @@ static int newCode(sCodeIdx* code, eOp op)
 {
   CHECK(sys->getCode(code, NEW_CODE));
   code->code.op = op;
-  trackStack(op, 0);
+  trackStack(op, 0, 0);
   return code->idx;
 }
 
@@ -475,12 +485,29 @@ static int addCode(eOp op, int param)
 {
   sCode code =
   {
-    .op    = op,
-    .param = param
+    .op     = op,
+    .param  = param,
+    .param2 = 0
   };
   if (op != VAL_LOCAL && op != CMD_LET_LOCAL) // Local var can have neg param
     CHECK(param);
-  trackStack(op, param);
+  trackStack(op, param, 0);
+  return sys->addCode(&code);
+}
+
+//-----------------------------------------------------------------------------
+static int addCode2(eOp op, int param, int param2)
+{
+  sCode code =
+  {
+    .op     = op,
+    .param  = param,
+    .param2 = param2
+  };
+  if (op != VAL_LOCAL && op != CMD_LET_LOCAL) // Local var can have neg param
+    CHECK(param);
+  CHECK(param2);
+  trackStack(op, param, param2);
   return sys->addCode(&code);
 }
 
@@ -494,7 +521,7 @@ static int addStr(const char* str, sLenType len)
     .str.len   = len
   };
   CHECK(code.str.start);
-  trackStack(code.op, 0);
+  trackStack(code.op, 0, 0);
   return sys->addCode(&code);
 }
 
@@ -506,7 +533,7 @@ static int addFloat(float value)
     .op     = VAL_FLOAT,
     .fValue = value
   };
-  trackStack(code.op, 0);
+  trackStack(code.op, 0, 0);
   return sys->addCode(&code);
 }
 
@@ -518,8 +545,17 @@ static int addInt(int value)
     .op     = VAL_INTEGER,
     .iValue = value
   };
-  trackStack(code.op, 0);
+  trackStack(code.op, 0, 0);
   return sys->addCode(&code);
+}
+
+//-----------------------------------------------------------------------------
+static int parseArray(idxType idx)
+{
+  ENSURE(varDim[idx] != 0, ERR_NOT_ARRAY);
+  CHECK(parseExpr(0));
+  ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
+  return addCode2(varLevel[idx] ? VAL_LOCAL : VAL_GLOBAL, varIndex[idx], varDim[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -537,7 +573,7 @@ static int parseFunc(const char* name, int len, bool sub)
   if (*s != end)
     do
     {
-      parseExpr(0);
+      CHECK(parseExpr(0));
       argc++;
     } while (chrcon(','));
   ENSURE(chrcon(end), sub ? ERR_NEWLINE : ERR_BRACKETS_MISS);
@@ -629,10 +665,15 @@ static int parseVal(int level)
     return addCode(VAL_REG, regIndex(name, len));
   }
 
-  // Functions
+  // Functions / Arrays
   CHECK(len = namecon(&name));
   if (chrcon('('))
+  {
+    idxType idx = getVar(name, len);
+    if (idx >= 0)
+      return parseArray(idx);
     return parseFunc(name, len, false);
+  }
 
   // Variables
   idxType idx;
@@ -692,12 +733,25 @@ static int parseDim()
   const char* name;
   int         len;
   idxType     idx;
+  int         dim = 0;
   ENSURE(*s != '$', ERR_VAR_NAME);
   CHECK(len = namecon(&name));
+  if (chrcon('('))  // Array
+  {
+    char* end;
+    dim = strtoul(s, &end, 10);
+    ENSURE(end > s, ERR_NUM_INV);
+    ENSURE(dim > 0, ERR_DIM_INV);
+    readChars(end-s, true);
+    ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
+  }
   ENSURE(chrcon('\n'), ERR_NEWLINE);
 
   CHECK(idx = addVar(name, len, level));
   varIndex[idx] = sp;
+  varDim[idx] = dim;
+  for (int i = 1; i < dim; i++)
+    CHECK(addInt(0));
   return addInt(0);
 }
 
@@ -724,12 +778,29 @@ static int parseAssign(const char* name, int len)
   bool reg = (name[0] == '$');
   idxType idx;
   CHECK(idx = reg ? regIndex(name, len) : getOrAddVar(name, len));
+  printf("<VarDim %d>", varDim[idx]);
+  ENSURE(reg || varDim[idx] == 0, ERR_ARRAY);
   CHECK(parseExpr(0));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
 
   if (reg)
     return addCode(CMD_LET_REG, idx);
-  return addCode(varLevel[idx] ? CMD_LET_LOCAL : CMD_LET_GOBAL, varIndex[idx]);
+  return addCode(varLevel[idx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL, varIndex[idx]);
+}
+
+//-----------------------------------------------------------------------------
+static int parseArrayAssign(const char* name, int len)
+{
+  idxType idx;
+  ENSURE(name[0] != '$', ERR_NOT_IMPL); // TODO: Implement array registers
+  CHECK(idx = getVar(name, len));
+  ENSURE(varDim[idx] > 0, ERR_NOT_ARRAY);
+  CHECK(parseExpr(0));
+  ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
+  ENSURE(chrcon('='), ERR_ASSIGN);
+  CHECK(parseExpr(0));
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
+  return addCode2(varLevel[idx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL, varIndex[idx], varDim[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -892,7 +963,7 @@ static int parseFor()
   CHECK(len = namecon(&name));
   varIdx = getOrAddVar(name, len);
   varGet = varLevel[varIdx] ? VAL_LOCAL : VAL_GLOBAL;
-  varSet = varLevel[varIdx] ? CMD_LET_LOCAL : CMD_LET_GOBAL;
+  varSet = varLevel[varIdx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL;
   varIdx = varIndex[varIdx];
 
   ENSURE(chrcon('='), ERR_ASSIGN);
@@ -1040,16 +1111,21 @@ static int parseStmt(void)
   if (keycon("LET"))
   {
     CHECK(len = namecon(&name));
-    ENSURE(chrcon('='), ERR_ASSIGN);
-    return parseAssign(name, len);
+    if (chrcon('='))  // Variable assignment
+      return parseAssign(name, len);
+    if (chrcon('('))  // Array assignment
+      return parseArrayAssign(name, len);
+    return ERR_ASSIGN;
   }
 
   // Commands without keyword
   CHECK(len = namecon(&name));
   if (chrcon(':'))  // Label
     return parseLabel(name, len);
-  if (chrcon('='))  // Assignment
+  if (chrcon('='))  // Variable assignment
     return parseAssign(name, len);
+  if (chrcon('('))  // Array assignment
+    return parseArrayAssign(name, len);
   return parseFunc(name, len, true);
 }
 

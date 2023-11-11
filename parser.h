@@ -42,6 +42,11 @@
 #define ERR_EXIT_DO         -37   // Exit Do outside Do .. Loop
 #define ERR_EXIT_FOR        -38   // Exit For outside For .. Next
 #define ERR_EXIT_SUB        -39   // Exit Sub outside sub
+
+#define ERR_DIM_INV         -40   // Invalid array dimension
+#define ERR_NOT_ARRAY       -41   // Variable is not an array
+#define ERR_ARRAY           -42   // Variable is an array
+
 #define ERR_NOT_IMPL        -999  // Not implemented yet
 
 

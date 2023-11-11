@@ -16,8 +16,8 @@ typedef enum
 {                   // Code    Linker    Arg       Stack
   CMD_INVALID = 0,  //  X                -         -
   CMD_PRINT,        //  X                <cnt>     -1-<cnt>
-  CMD_LET_GOBAL,    //  X                <var>     -1
-  CMD_LET_LOCAL,    //  X                <offset>  -1
+  CMD_LET_GLOBAL,   //  X                <var>     -1/-2
+  CMD_LET_LOCAL,    //  X                <offset>  -1/-2
   CMD_LET_REG,      //  X                <reg>     -1
   CMD_IF,           //  X                <lbl>     -1
   CMD_GOTO,         //  X                <lbl>     -
@@ -49,8 +49,8 @@ typedef enum
   VAL_INTEGER,      //  X                <int>     +1
   VAL_FLOAT,        //  X                <float>   +1
   VAL_STRING,       //  X                <str>     +1
-  VAL_GLOBAL,       //  X                <var>     +1
-  VAL_LOCAL,        //  X                <offset>  +1
+  VAL_GLOBAL,       //  X                <var>     +1/-
+  VAL_LOCAL,        //  X                <offset>  +1/-
   VAL_REG,          //  X                <reg>     +1
   VAL_LABEL,        //                   <lbl>     -
 } eOp;
@@ -67,9 +67,13 @@ typedef struct sCode
   eOp           op;
   union
   {
-    idxType     param;    // var (VAR, LET), reg (REG, SET), lbl (IF, GOTO, GOSUB)
     iType       iValue;   // VAL_INTEGER
     fType       fValue;   // VAL_FLOAT
+    struct                //
+    {                     //
+      idxType   param;    // var (VAR, LET), reg (REG, SET), lbl (IF, GOTO, GOSUB)
+      idxType   param2;   // dim (VAR, LET)
+    };                    //
     struct                // VAL_STRING
     {                     //
       idxType   start;    // - start address

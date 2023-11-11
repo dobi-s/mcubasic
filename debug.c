@@ -11,7 +11,7 @@ static const char* opStr(eOp op)
   switch (op)
   {
     case CMD_PRINT:     return "Print";
-    case CMD_LET_GOBAL: return "LetGobal";
+    case CMD_LET_GLOBAL:return "LetGlobl";
     case CMD_LET_LOCAL: return "LetLocal";
     case CMD_LET_REG:   return "LetReg";
     case CMD_IF:        return "If";
@@ -44,7 +44,7 @@ static const char* opStr(eOp op)
     case VAL_INTEGER:   return "INT";
     case VAL_FLOAT:     return "FLT";
     case VAL_STRING:    return "STR";
-    case VAL_GLOBAL:    return "GOBAL";
+    case VAL_GLOBAL:    return "GLOBAL";
     case VAL_LOCAL:     return "LOCAL";
     case VAL_REG:       return "REG";
     default:            return "(?)";
@@ -59,8 +59,6 @@ static void printCmd(idxType i, sCode* c)
     case CMD_INVALID:
       break;
     case CMD_PRINT:
-    case CMD_LET_GOBAL:
-    case CMD_LET_LOCAL:
     case CMD_LET_REG:
     case CMD_IF:
     case CMD_GOTO:
@@ -70,10 +68,14 @@ static void printCmd(idxType i, sCode* c)
     case CMD_RETURN:
     case CMD_POP:
     case CMD_SVC:
-    case VAL_GLOBAL:
-    case VAL_LOCAL:
     case VAL_REG:
       printf("%3d: %-8s (%5d)", i, opStr(c->op), c->param);
+      break;
+    case CMD_LET_GLOBAL:
+    case CMD_LET_LOCAL:
+    case VAL_GLOBAL:
+    case VAL_LOCAL:
+      printf("%3d: %-8s (%-2d%3d)", i, opStr(c->op), c->param2, c->param);
       break;
     case CMD_NOP:
     case CMD_END:
