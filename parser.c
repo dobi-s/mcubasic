@@ -438,6 +438,9 @@ static void trackStack(eOp op, int param, int param2)
     case CMD_LET_LOCAL:
       sp -= (param2 > 0) ? 2 : 1;
       break;
+    case CMD_LET_PTR:
+      sp -= 2;
+      break;
     case CMD_LET_REG:
     case CMD_IF:
     case OP_NEQ:
@@ -460,11 +463,13 @@ static void trackStack(eOp op, int param, int param2)
     case VAL_INTEGER:
     case VAL_FLOAT:
     case VAL_STRING:
-    case VAL_REG:
+    case VAL_PTR:
+    case CMD_GET_REG:
+    case CMD_CREATE_PTR:
       sp++;
       break;
-    case VAL_GLOBAL:
-    case VAL_LOCAL:
+    case CMD_GET_GLOBAL:
+    case CMD_GET_LOCAL:
       if (param2 == 0)
         sp++;
       break;
@@ -489,7 +494,8 @@ static int addCode(eOp op, int param)
     .param  = param,
     .param2 = 0
   };
-  if (op != VAL_LOCAL && op != CMD_LET_LOCAL) // Local var can have neg param
+  if (op != CMD_GET_LOCAL && op != CMD_LET_LOCAL && // Local var can have neg param
+      op != CMD_GET_PTR   && op != CMD_LET_PTR   )
     CHECK(param);
   trackStack(op, param, 0);
   return sys->addCode(&code);
@@ -504,9 +510,12 @@ static int addCode2(eOp op, int param, int param2)
     .param  = param,
     .param2 = param2
   };
-  if (op != VAL_LOCAL && op != CMD_LET_LOCAL) // Local var can have neg param
+  if (op != CMD_GET_LOCAL && op != CMD_LET_LOCAL && // Local var can have neg param
+      op != CMD_GET_PTR   && op != CMD_LET_PTR   &&
+      op != CMD_CREATE_PTR)
     CHECK(param);
-  CHECK(param2);
+  if (op != CMD_CREATE_PTR)
+    CHECK(param2);
   trackStack(op, param, param2);
   return sys->addCode(&code);
 }
@@ -555,7 +564,10 @@ static int parseArray(idxType idx)
   ENSURE(varDim[idx] != 0, ERR_NOT_ARRAY);
   CHECK(parseExpr(0));
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
-  return addCode2(varLevel[idx] ? VAL_LOCAL : VAL_GLOBAL, varIndex[idx], varDim[idx]);
+  if (varDim[idx] > 0)
+    return addCode2(varLevel[idx] ? CMD_GET_LOCAL : CMD_GET_GLOBAL, varIndex[idx], varDim[idx]);
+  ENSURE(varLevel[idx] > 0, ERR_NOT_IMPL);  // Ptr can't exist globally
+  return addCode(CMD_GET_PTR, varIndex[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -662,7 +674,7 @@ static int parseVal(int level)
   if (*s == '$')
   {
     CHECK(len = namecon(&name));
-    return addCode(VAL_REG, regIndex(name, len));
+    return addCode(CMD_GET_REG, regIndex(name, len));
   }
 
   // Functions / Arrays
@@ -678,7 +690,9 @@ static int parseVal(int level)
   // Variables
   idxType idx;
   CHECK(idx = getVar(name, len));
-  return addCode(varLevel[idx] ? VAL_LOCAL : VAL_GLOBAL, varIndex[idx]);
+  if (varDim[idx] != 0) // Array without index
+    return addCode2(varLevel[idx] ? CMD_CREATE_PTR : VAL_PTR, varIndex[idx], varDim[idx]);
+  return addCode(varLevel[idx] ? CMD_GET_LOCAL : CMD_GET_GLOBAL, varIndex[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -794,13 +808,16 @@ static int parseArrayAssign(const char* name, int len)
   idxType idx;
   ENSURE(name[0] != '$', ERR_NOT_IMPL); // TODO: Implement array registers
   CHECK(idx = getVar(name, len));
-  ENSURE(varDim[idx] > 0, ERR_NOT_ARRAY);
+  ENSURE(varDim[idx] != 0, ERR_NOT_ARRAY);
   CHECK(parseExpr(0));
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   ENSURE(chrcon('='), ERR_ASSIGN);
   CHECK(parseExpr(0));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
-  return addCode2(varLevel[idx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL, varIndex[idx], varDim[idx]);
+  if (varDim[idx] > 0)
+    return addCode2(varLevel[idx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL, varIndex[idx], varDim[idx]);
+  ENSURE(varLevel[idx] > 0, ERR_NOT_IMPL);  // Ptr can't exist globally
+  return addCode(CMD_LET_PTR, varIndex[idx]);
 }
 
 //-----------------------------------------------------------------------------
@@ -962,7 +979,7 @@ static int parseFor()
   ENSURE(*s != '$', ERR_VAR_NAME);
   CHECK(len = namecon(&name));
   varIdx = getOrAddVar(name, len);
-  varGet = varLevel[varIdx] ? VAL_LOCAL : VAL_GLOBAL;
+  varGet = varLevel[varIdx] ? CMD_GET_LOCAL : CMD_GET_GLOBAL;
   varSet = varLevel[varIdx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL;
   varIdx = varIndex[varIdx];
 
@@ -1039,6 +1056,11 @@ static int parseSub()
       CHECK(len = namecon(&name));
       curArgc++;
       CHECK(varIdx = addVar(name, len, 1));
+      if (chrcon('('))
+      {
+        varDim[varIdx] = -1;
+        ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
+      }
     } while(chrcon(','));
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   ENSURE(chrcon('\n'), ERR_NEWLINE);

@@ -13,6 +13,7 @@ static const char* opStr(eOp op)
     case CMD_PRINT:     return "Print";
     case CMD_LET_GLOBAL:return "LetGlobl";
     case CMD_LET_LOCAL: return "LetLocal";
+    case CMD_LET_PTR:   return "LetPtr";
     case CMD_LET_REG:   return "LetReg";
     case CMD_IF:        return "If";
     case CMD_GOTO:      return "GoTo";
@@ -22,6 +23,11 @@ static const char* opStr(eOp op)
     case CMD_NOP:       return "Nop";
     case CMD_END:       return "End";
     case CMD_SVC:       return "Svc";
+    case CMD_GET_GLOBAL:return "GetGlobl";
+    case CMD_GET_LOCAL: return "GetLocal";
+    case CMD_GET_PTR:   return "GetPtr";
+    case CMD_GET_REG:   return "GetReg";
+    case CMD_CREATE_PTR:return "CreatPtr";
     case LNK_GOTO:      return "GoTo*";
     case LNK_GOSUB:     return "GoSub*";
     case OP_NEQ:        return "<>";
@@ -44,9 +50,7 @@ static const char* opStr(eOp op)
     case VAL_INTEGER:   return "INT";
     case VAL_FLOAT:     return "FLT";
     case VAL_STRING:    return "STR";
-    case VAL_GLOBAL:    return "GLOBAL";
-    case VAL_LOCAL:     return "LOCAL";
-    case VAL_REG:       return "REG";
+    case VAL_PTR:       return "PTR";
     default:            return "(?)";
   }
 }
@@ -59,6 +63,7 @@ static void printCmd(idxType i, sCode* c)
     case CMD_INVALID:
       break;
     case CMD_PRINT:
+    case CMD_LET_PTR:
     case CMD_LET_REG:
     case CMD_IF:
     case CMD_GOTO:
@@ -68,13 +73,16 @@ static void printCmd(idxType i, sCode* c)
     case CMD_RETURN:
     case CMD_POP:
     case CMD_SVC:
-    case VAL_REG:
+    case CMD_GET_PTR:
+    case CMD_GET_REG:
       printf("%3d: %-8s (%5d)", i, opStr(c->op), c->param);
       break;
     case CMD_LET_GLOBAL:
     case CMD_LET_LOCAL:
-    case VAL_GLOBAL:
-    case VAL_LOCAL:
+    case CMD_GET_GLOBAL:
+    case CMD_GET_LOCAL:
+    case CMD_CREATE_PTR:
+    case VAL_PTR:
       printf("%3d: %-8s (%-2d%3d)", i, opStr(c->op), c->param2, c->param);
       break;
     case CMD_NOP:
@@ -219,6 +227,12 @@ void debugState(sCodeIdx* code, sCode* stack, idxType sp, idxType fp)
         break;
       case VAL_LABEL:
         printf(" [Lbl %3d %3d]", stack[i].lbl.lbl, stack[i].lbl.fp);
+        break;
+      case VAL_PTR:
+        printf(" [Ptr %3d %3d]", stack[i].param, stack[i].param2);
+        break;
+      default:
+        printf(" [%-3d        ]", stack[i].op);
         break;
     }
   printf("\n");

@@ -1,28 +1,15 @@
-Sub Test()
-  Dim a
-  Dim b(3)
-  Dim c
-
-  a = 9
-  b(0) = 12
-  b(2) = 13
-  c = 999
-
-  Test2
-  Print b(2)
+Sub Test(a())
+  a(1) = 321
+  Test2 a
 End Sub
 
-Sub Test2()
-  Dim a
-  Dim b(3)
-  Dim c
-
-  a = 9
-  b(0) = 12
-  b(2) = 15
-  c = 999
-
-  Print b(2)
+Sub Test2(b())
+  Print b(1)
+  b(2) = 456
 End Sub
 
-Test
+Dim x(3)
+x(0) = 123
+
+Test x
+Print x(1)

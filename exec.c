@@ -165,6 +165,7 @@ int exec(sSys* sys, idxType pc)
   sCode    value;
   iType    iValue;
   fType    fValue;
+  sCode*   ptr;
 
   ENSURE(pc >= 0, ERR_EXEC_PC);
   CHECK(sys->getCode(&code, pc));
@@ -199,6 +200,16 @@ int exec(sSys* sys, idxType pc)
       ENSURE(fp + code.code.param >= 0 && fp + code.code.param + iValue< sp, ERR_EXEC_VAR_INV);
       memcpy(&stack[fp + code.code.param + iValue], &stack[--sp], sizeof(stack[0]));
       return pc + 1;
+    case CMD_LET_PTR:
+      sp -= 2;
+      ENSURE(fp + code.code.param >= 0 && fp + code.code.param < sp, ERR_EXEC_VAR_INV);
+      ptr = &stack[fp + code.code.param];
+      ENSURE(ptr->op == VAL_PTR, ERR_EXEC_VAR_INV);
+      iValue = castInt(&stack[sp]);
+      ENSURE(iValue >= 0 && iValue < ptr->param2, ERR_EXEC_OUT_BOUND);
+      ENSURE(ptr->param >= 0 && ptr->param + iValue < sp, ERR_EXEC_VAR_INV);
+      memcpy(&stack[ptr->param + iValue], &stack[sp+1], sizeof(stack[0]));
+      return pc + 1;
     case CMD_LET_REG:
       ENSURE(sp > 0, ERR_EXEC_STACK_UF);
       CHECK(setReg(sys, code.code.param, &stack[--sp]));
@@ -224,6 +235,45 @@ int exec(sSys* sys, idxType pc)
       return ERR_EXEC_END;
     case CMD_SVC:
       CHECK(svc(sys, code.code.param));
+      return pc + 1;
+    case CMD_GET_GLOBAL:
+      iValue = (code.code.param2 > 0) ? castInt(&stack[--sp]) : 0;
+      ENSURE(code.code.param2 == 0 || (iValue >= 0 && iValue < code.code.param2), ERR_EXEC_OUT_BOUND);
+      ENSURE(code.code.param >= 0 && code.code.param + iValue < sp, ERR_EXEC_VAR_INV);
+      CHECK(pushCode(&stack[code.code.param + iValue]));
+      return pc + 1;
+    case CMD_GET_LOCAL:
+      iValue = (code.code.param2 > 0) ? castInt(&stack[--sp]) : 0;
+      ENSURE(code.code.param2 == 0 || (iValue >= 0 && iValue < code.code.param2), ERR_EXEC_OUT_BOUND);
+      ENSURE(fp + code.code.param >= 0 && fp + code.code.param + iValue < sp, ERR_EXEC_VAR_INV);
+      CHECK(pushCode(&stack[fp + code.code.param + iValue]));
+      return pc + 1;
+    case CMD_GET_PTR:
+      ENSURE(fp + code.code.param >= 0 && fp + code.code.param < sp, ERR_EXEC_VAR_INV);
+      ptr = &stack[fp + code.code.param];
+      ENSURE(ptr->op == VAL_PTR, ERR_EXEC_VAR_INV);
+      iValue = castInt(&stack[--sp]);
+      ENSURE(iValue >= 0 && iValue < ptr->param2, ERR_EXEC_OUT_BOUND);
+      ENSURE(ptr->param >= 0 && ptr->param + iValue < sp, ERR_EXEC_VAR_INV);
+      CHECK(pushCode(&stack[ptr->param + iValue]));
+      return pc + 1;
+    case CMD_GET_REG:
+      CHECK(getReg(sys, &value, code.code.param));
+      CHECK(pushCode(&value));
+      return pc + 1;
+    case CMD_CREATE_PTR:
+      ENSURE(fp + code.code.param >= 0 && fp + code.code.param < sp, ERR_EXEC_VAR_INV);
+      if (stack[fp + code.code.param].op == VAL_PTR)
+      {
+        CHECK(pushCode(&stack[fp + code.code.param]));
+      }
+      else
+      {
+        value.op     = VAL_PTR;
+        value.param  = fp + code.code.param;
+        value.param2 = code.code.param2;
+        CHECK(pushCode(&value));
+      }
       return pc + 1;
     case OP_NEQ:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
@@ -320,23 +370,8 @@ int exec(sSys* sys, idxType pc)
     case VAL_INTEGER:
     case VAL_FLOAT:
     case VAL_STRING:
+    case VAL_PTR:
       CHECK(pushCode(&code.code));
-      return pc + 1;
-    case VAL_GLOBAL:
-      iValue = (code.code.param2 > 0) ? castInt(&stack[--sp]) : 0;
-      ENSURE(code.code.param2 == 0 || (iValue >= 0 && iValue < code.code.param2), ERR_EXEC_OUT_BOUND);
-      ENSURE(code.code.param >= 0 && code.code.param + iValue < sp, ERR_EXEC_VAR_INV);
-      CHECK(pushCode(&stack[code.code.param + iValue]));
-      return pc + 1;
-    case VAL_LOCAL:
-      iValue = (code.code.param2 > 0) ? castInt(&stack[--sp]) : 0;
-      ENSURE(code.code.param2 == 0 || (iValue >= 0 && iValue < code.code.param2), ERR_EXEC_OUT_BOUND);
-      ENSURE(fp + code.code.param >= 0 && fp + code.code.param + iValue < sp, ERR_EXEC_VAR_INV);
-      CHECK(pushCode(&stack[fp + code.code.param + iValue]));
-      return pc + 1;
-    case VAL_REG:
-      CHECK(getReg(sys, &value, code.code.param));
-      CHECK(pushCode(&value));
       return pc + 1;
     default:
       return ERR_EXEC_CMD_INV;
