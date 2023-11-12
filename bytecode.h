@@ -105,19 +105,19 @@ typedef int (*fGetter)(sCode* code, int cookie);
 typedef int (*fSetter)(sCode* code, int cookie);
 typedef struct
 {
-  char*   name;
-  fGetter getter;
-  fSetter setter;
-  int     cookie;
+  const char* name;
+  fGetter     getter;
+  fSetter     setter;
+  int         cookie;
 } sReg;
 
 //-----------------------------------------------------------------------------
 typedef int (*fSvc)(sCode* stack);
 typedef struct
 {
-  char* name;
-  fSvc  func;
-  int   argc;
+  const char* name;
+  fSvc        func;
+  int         argc;
 } sSvc;
 
 

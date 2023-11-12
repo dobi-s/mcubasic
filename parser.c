@@ -245,7 +245,19 @@ static int chrcon(char c)
   return 1;
 }
 
-//-----------------------------------------------------------------------------
+//----------------------------------------------------------------------------
+static bool namecmp(const char* ref, const char* name, int len)
+{
+  if (len < MAX_NAME && ref[len] != '\0')  // Check len
+    return false;
+
+  for (int i = 0; i < len; i++)
+    if ((ref[i] ^ name[i]) & 0xDF)
+      return false;
+  return true;
+}
+
+//----------------------------------------------------------------------------
 static int namecon(const char** name)
 {
   static char buf[MAX_NAME];
@@ -278,8 +290,7 @@ static int getVar(const char* name, int len)
 {
   for (int idx = MAX_VAR_NUM - 1; idx >= 0; idx--)
   {
-    if ((len == MAX_NAME || varName[idx][len] == '\0') &&
-        memcmp(name, varName[idx], len) == 0)
+    if (namecmp(varName[idx], name, len))
       return idx;
   }
   return ERR_VAR_UNDEF;
@@ -341,9 +352,7 @@ static int regIndex(const char* name, int len)
 {
   for (int idx = 0; idx < MAX_REG_NUM; idx++)
   {
-    if ((sys->regs[idx].name                         ) &&
-        (sys->regs[idx].name[len] == '\0'            ) &&
-        (memcmp(name, sys->regs[idx].name, len) == 0))
+    if (sys->regs[idx].name && namecmp(sys->regs[idx].name, name, len))
       return idx;
   }
   return ERR_REG_NOT_FOUND;
@@ -354,9 +363,7 @@ static int svcIndex(const char* name, int len)
 {
   for (int idx = 0; idx < MAX_SVC_NUM; idx++)
   {
-    if ((sys->svcs[idx].name                        ) &&
-        (sys->svcs[idx].name[len] == '\0'           ) &&
-        (memcmp(name, sys->svcs[idx].name, len) == 0))
+    if (sys->svcs[idx].name && namecmp(sys->svcs[idx].name, name, len))
       return idx;
   }
   return ERR_SUB_NOT_FOUND;
@@ -368,8 +375,7 @@ static int subIndex(const char* name, int len)
   int idx;
   for (idx = 0; idx < ARRAY_SIZE(subName); idx++)
   {
-    if ((len == MAX_NAME || subName[idx][len] == '\0') &&
-        memcmp(name, subName[idx], len) == 0)
+    if (namecmp(subName[idx], name, len))
       return idx;
   }
 
@@ -396,8 +402,7 @@ static int lblIndex(const char* name, int len, int dst)
   int idx;
   for (idx = 0; idx < ARRAY_SIZE(labels); idx++)
   {
-    if ((len == MAX_NAME || labels[idx][len] == '\0') &&
-        memcmp(name, labels[idx], len) == 0)
+    if (namecmp(labels[idx], name, len))
     {
       ENSURE(dst == -1 || labelDst[idx] == (idxType)-1, ERR_LABEL_DUPL);
       if (dst != -1) labelDst[idx] = dst;
