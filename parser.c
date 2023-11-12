@@ -44,37 +44,40 @@ static int parseBlock(void);
 //=============================================================================
 static const sOperators operators[] =
 {
-  { 0, "<>",    OP_NEQ   },
-  { 0, "<=",    OP_LTEQ  },
-  { 0, ">=",    OP_GTEQ  },
-  { 0, "<",     OP_LT    },
-  { 0, ">",     OP_GT    },
-  { 0, "=",     OP_EQUAL },
-  { 1, " OR",   OP_OR    },
-  { 2, " AND",  OP_AND   },
-  { 3, "NOT ",  OP_NOT   },
-  { 4, "+",     OP_PLUS  },
-  { 4, "-",     OP_MINUS },
-  { 5, " MOD",  OP_MOD   },
-  { 5, "*",     OP_MULT  },
-  { 5, "/",     OP_DIV   },
-  { 5, "\\",    OP_IDIV  },
-  { 6, "^",     OP_POW   },
-  { 7, "-",     OP_SIGN  },
+  { 0, " OR",   OP_OR    },
+  { 1, " AND",  OP_AND   },
+  { 2, "NOT ",  OP_NOT   },
+  { 3, "<>",    OP_NEQ   },
+  { 3, "<=",    OP_LTEQ  },
+  { 3, ">=",    OP_GTEQ  },
+  { 3, "<",     OP_LT    },
+  { 3, ">",     OP_GT    },
+  { 3, "=",     OP_EQUAL },
+  { 4, " SHR",  OP_SHR   },
+  { 4, " SHL",  OP_SHL   },
+  { 5, "+",     OP_PLUS  },
+  { 5, "-",     OP_MINUS },
+  { 6, " MOD",  OP_MOD   },
+  { 6, "*",     OP_MULT  },
+  { 6, "/",     OP_DIV   },
+  { 6, "\\",    OP_IDIV  },
+  { 7, "^",     OP_POW   },
+  { 8, "-",     OP_SIGN  },
 };
 
 //-----------------------------------------------------------------------------
 static const fParser parser[] =
 {
-  parseDual,      // 0: <>, <=, >=, <, >, =
-  parseDual,      // 1: OR
-  parseDual,      // 2: AND
-  parsePrefix,    // 3: NOT
-  parseDual,      // 4: +, -
-  parseDual,      // 5: MOD, \, *, /
-  parseDual,      // 6: ^
-  parsePrefix,    // 7: -
-  parseVal,       // 8: values
+  parseDual,      // 0: OR
+  parseDual,      // 1: AND
+  parsePrefix,    // 2: NOT
+  parseDual,      // 3: <>, <=, >=, <, >, =
+  parseDual,      // 4: SHR, SHL, <<, >>
+  parseDual,      // 5: +, -
+  parseDual,      // 6: MOD, \, *, /
+  parseDual,      // 7: ^
+  parsePrefix,    // 8: -
+  parseVal,       // 9: values
 };
 
 //=============================================================================
@@ -451,6 +454,8 @@ static void trackStack(eOp op, int param, int param2)
     case OP_EQUAL:
     case OP_OR:
     case OP_AND:
+    case OP_SHL:
+    case OP_SHR:
     case OP_PLUS:
     case OP_MINUS:
     case OP_MOD:

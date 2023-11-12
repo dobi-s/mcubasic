@@ -135,7 +135,7 @@ static int getString(const char** str, int start, unsigned int len)
 //=============================================================================
 int main()
 {
-  const char* const filename = "test6.bas";
+  const char* const filename = "test7.bas";
   sSys sys =
   {
     .getNextChar = getNextChar,

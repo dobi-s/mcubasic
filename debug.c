@@ -39,6 +39,8 @@ static const char* opStr(eOp op)
     case OP_OR:         return "Or";
     case OP_AND:        return "And";
     case OP_NOT:        return "Not ";
+    case OP_SHL:        return "Shl";
+    case OP_SHR:        return "Shr";
     case OP_PLUS:       return "+";
     case OP_MINUS:      return "-";
     case OP_MOD:        return "Mod";
@@ -95,6 +97,8 @@ static void printCmd(idxType i, sCode* c)
     case OP_EQUAL:
     case OP_OR:
     case OP_AND:
+    case OP_SHL:
+    case OP_SHR:
     case OP_PLUS:
     case OP_MINUS:
     case OP_MOD:
@@ -113,7 +117,7 @@ static void printCmd(idxType i, sCode* c)
       printf("%3d: %-8s (%5.1f)", i, opStr(c->op), c->fValue);
       break;
     case VAL_STRING:
-      printf("%3d: %-8s (%2d/%2d)", i, opStr(c->op), c->str.start, c->str.len);
+      printf("%3d: %-8s (%-2d%3d)", i, opStr(c->op), c->str.len, c->str.start);
       break;
     default:
       printf("%3d: ? %3d ?        ", i, c->op);

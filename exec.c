@@ -277,51 +277,59 @@ int exec(sSys* sys, idxType pc)
       return pc + 1;
     case OP_NEQ:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
-      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+      CHECK(pushInt(((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
           ? (stack[sp].iValue      != stack[sp+1].iValue)
-          : (castFloat(&stack[sp]) != castFloat(&stack[sp+1]))));
+          : (castFloat(&stack[sp]) != castFloat(&stack[sp+1]))) ? -1 : 0));
       return pc + 1;
     case OP_LTEQ:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
-      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+      CHECK(pushInt(((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
           ? (stack[sp].iValue      <= stack[sp+1].iValue)
-          : (castFloat(&stack[sp]) <= castFloat(&stack[sp+1]))));
+          : (castFloat(&stack[sp]) <= castFloat(&stack[sp+1]))) ? -1 : 0));
       return pc + 1;
     case OP_GTEQ:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
-      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+      CHECK(pushInt(((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
           ? (stack[sp].iValue      >= stack[sp+1].iValue)
-          : (castFloat(&stack[sp]) >= castFloat(&stack[sp+1]))));
+          : (castFloat(&stack[sp]) >= castFloat(&stack[sp+1]))) ? -1 : 0));
       return pc + 1;
     case OP_LT:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
-      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+      CHECK(pushInt(((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
           ? (stack[sp].iValue      < stack[sp+1].iValue)
-          : (castFloat(&stack[sp]) < castFloat(&stack[sp+1]))));
+          : (castFloat(&stack[sp]) < castFloat(&stack[sp+1]))) ? -1 : 0));
       return pc + 1;
     case OP_GT:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
-      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+      CHECK(pushInt(((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
           ? (stack[sp].iValue      > stack[sp+1].iValue)
-          : (castFloat(&stack[sp]) > castFloat(&stack[sp+1]))));
+          : (castFloat(&stack[sp]) > castFloat(&stack[sp+1]))) ? -1 : 0));
       return pc + 1;
     case OP_EQUAL:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
-      CHECK(pushInt((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
+      CHECK(pushInt(((IS_INT(stack[sp]) && IS_INT(stack[sp+1]))
           ? (stack[sp].iValue      == stack[sp+1].iValue)
-          : (castFloat(&stack[sp]) == castFloat(&stack[sp+1]))));
+          : (castFloat(&stack[sp]) == castFloat(&stack[sp+1]))) ? -1 : 0));
       return pc + 1;
     case OP_OR:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
-      CHECK(pushInt(castBool(&stack[sp]) || castBool(&stack[sp+1])));
+      CHECK(pushInt(castInt(&stack[sp]) | castInt(&stack[sp+1])));
       return pc + 1;
     case OP_AND:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
-      CHECK(pushInt(castBool(&stack[sp]) && castBool(&stack[sp+1])));
+      CHECK(pushInt(castInt(&stack[sp]) & castInt(&stack[sp+1])));
       return pc + 1;
     case OP_NOT:
       ENSURE(sp >= 1, ERR_EXEC_STACK_UF); sp -= 1;
-      CHECK(pushInt(!castBool(&stack[sp])));
+      CHECK(pushInt(~castInt(&stack[sp])));
+      return pc + 1;
+    case OP_SHL:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt(castInt(&stack[sp]) << castInt(&stack[sp+1])));
+      return pc + 1;
+    case OP_SHR:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt(castInt(&stack[sp]) >> castInt(&stack[sp+1])));
       return pc + 1;
     case OP_PLUS:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
