@@ -1,7 +1,7 @@
 #include <stdbool.h>
 #include <stdio.h>
-#include "bytecode.h"
-#include "parser.h"
+#include "basic_bytecode.h"
+#include "basic_parser.h"
 
 //=============================================================================
 // Private functions

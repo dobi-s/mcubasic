@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include "config.h"
+#include "basic_config.h"
 
 //=============================================================================
 // Defines
@@ -112,7 +112,7 @@ typedef struct
 } sReg;
 
 //-----------------------------------------------------------------------------
-typedef int (*fSvc)(sCode* stack);
+typedef int (*fSvc)(sCode* args, sCode* mem);
 typedef struct
 {
   const char* name;

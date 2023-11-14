@@ -2,9 +2,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include "common.h"
-#include "config.h"
-#include "exec.h"
+#include "basic_common.h"
+#include "basic_config.h"
+#include "basic_exec.h"
 
 //=============================================================================
 // Defines
@@ -153,7 +153,7 @@ static int svc(sSys* sys, idxType idx)
   ENSURE(idx >= 0 && idx < ARRAY_SIZE(sys->svcs), ERR_EXEC_SVC_INV);
   ENSURE(sp > sys->svcs[idx].argc, ERR_EXEC_STACK_UF);
   sp -= sys->svcs[idx].argc;
-  return sys->svcs[idx].func(&stack[sp - 1]);
+  return sys->svcs[idx].func(&stack[sp - 1], &stack[0]);
 }
 
 //=============================================================================

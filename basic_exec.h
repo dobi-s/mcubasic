@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bytecode.h"
+#include "basic_bytecode.h"
 
 //=============================================================================
 // Defines

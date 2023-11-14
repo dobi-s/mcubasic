@@ -3,12 +3,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "common.h"
-#include "bytecode.h"
-#include "parser.h"
-#include "debug.h"
-#include "exec.h"
-#include "optimizer.h"
+#include "basic_common.h"
+#include "basic_bytecode.h"
+#include "basic_parser.h"
+#include "basic_debug.h"
+#include "basic_exec.h"
+#include "basic_optimizer.h"
 
 //=============================================================================
 // Public variables
@@ -27,11 +27,23 @@ static FILE* file;
 //=============================================================================
 // Registers, functions
 //=============================================================================
-int test(sCode* stack)
+int test(sCode* args, sCode* mem)
 {
   printf("\n--- test called ---\n");
-  stack[0].op     = VAL_INTEGER;
-  stack[0].iValue = 123;
+  args[0].op     = VAL_INTEGER;
+  args[0].iValue = 123;
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+int readData(sCode* args, sCode* mem)
+{
+  // Check if 1st arg is pointer to array with length 8
+  if (args[1].op != VAL_PTR || args[1].param2 != 8)
+    return -1;
+
+  mem[args[1].param + 1].op     = VAL_INTEGER;
+  mem[args[1].param + 1].iValue = 12345;
   return 0;
 }
 
@@ -135,7 +147,7 @@ static int getString(const char** str, int start, unsigned int len)
 //=============================================================================
 int main()
 {
-  const char* const filename = "test6.bas";
+  const char* const filename = "test8.bas";
   sSys sys =
   {
     .getNextChar = getNextChar,
@@ -150,7 +162,8 @@ int main()
     },
     .svcs        =
     {
-      { "_TEST", test, 2 },
+      { "_TEST",    test,     2 },
+      { "ReadData", readData, 1 },
     }
   };
 

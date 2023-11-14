@@ -1,8 +1,8 @@
 #include <stdbool.h>
-#include "common.h"
-#include "optimizer.h"
-#include "bytecode.h"
-#include "exec.h"
+#include "basic_common.h"
+#include "basic_optimizer.h"
+#include "basic_bytecode.h"
+#include "basic_exec.h"
 
 //=============================================================================
 // Private functions

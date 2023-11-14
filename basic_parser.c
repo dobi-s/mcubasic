@@ -3,10 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "bytecode.h"
-#include "debug.h"
-#include "parser.h"
-#include "common.h"
+#include "basic_bytecode.h"
+#include "basic_debug.h"
+#include "basic_parser.h"
+#include "basic_common.h"
 
 //=============================================================================
 // Defines
