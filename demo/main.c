@@ -8,7 +8,6 @@
 #include "basic_parser.h"
 #include "basic_debug.h"
 #include "basic_exec.h"
-#include "basic_optimizer.h"
 
 //=============================================================================
 // Public variables
@@ -52,21 +51,8 @@ int readData(sCode* args, sCode* mem)
 //=============================================================================
 static char getNextChar(void)
 {
-  static const char* eofStr = "\nEOF\n";
-  int c;
-
-  while(1)
-  {
-    if ((c = fgetc(file)) == EOF)
-      return (*eofStr) ? *(eofStr++) : '\0';
-
-    switch ((char)c)
-    {
-      case '\r': continue;
-      case '\t': return ' ';
-      default:   return (char)c;
-    }
-  }
+  int c = fgetc(file);
+  return (c == EOF) ? '\0' : c;
 }
 
 //-----------------------------------------------------------------------------
@@ -147,7 +133,7 @@ static int getString(const char** str, int start, unsigned int len)
 //=============================================================================
 int main()
 {
-  const char* const filename = "test8.bas";
+  const char* const filename = "C:\\temp\\mcubasic\\demo\\test.bas";
   sSys sys =
   {
     .getNextChar = getNextChar,
@@ -167,7 +153,7 @@ int main()
     }
   };
 
-  file = fopen(filename, "rb");
+  file = fopen(filename, "r");
   if (!file) { printf("Error open file\n"); return -1; }
 
 
@@ -186,11 +172,6 @@ int main()
   if ((err = link(&sys)) < 0)
   {
     printf("LINK ERROR %d: %s\n", err, errmsg(err));
-    return err;
-  }
-  if ((err = optimize(&sys)) < 0)
-  {
-    printf("OPTIMIZE ERROR %d: %s\n", err, errmsg(err));
     return err;
   }
 

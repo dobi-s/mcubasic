@@ -7,12 +7,15 @@
       "args": [
         "-fdiagnostics-color=always",
         "-g",
-        "${fileDirname}\\*.c",
+        "${workspaceFolder}\\src\\*.c",
+        "${workspaceFolder}\\demo\\*.c",
+        "-I${workspaceFolder}\\inc",
+        "-I${workspaceFolder}\\demo",
         "-o",
-        "${fileDirname}\\basic.exe"
+        "${workspaceFolder}\\basic.exe"
       ],
       "options": {
-        "cwd": "${fileDirname}"
+        "cwd": "${workspaceFolder}"
       },
       "problemMatcher": [
         "$gcc"
