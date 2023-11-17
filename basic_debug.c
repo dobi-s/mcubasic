@@ -50,7 +50,7 @@ static const char* opStr(eOp op)
     case OP_POW:        return "^";
     case OP_SIGN:       return "-";
     case VAL_INTEGER:   return "INT";
-    case VAL_FLOAT:     return "FLT";
+    case VAL_FLOAT:     return "FLOAT";
     case VAL_STRING:    return "STR";
     case VAL_PTR:       return "PTR";
     default:            return "(?)";
@@ -188,7 +188,7 @@ void debugPrintRaw(const sSys* sys)
     if (c.code.op == CMD_INVALID)
       continue;
     printCmd(i, &c.code);
-    printf("\n");
+    printf(BASIC_OUT_EOL);
   }
 
   // printf("  %3d Code\n", nextCode);
@@ -239,5 +239,5 @@ void debugState(sCodeIdx* code, sCode* stack, idxType sp, idxType fp)
         printf(" [%-3d        ]", stack[i].op);
         break;
     }
-  printf("\n");
+  printf(BASIC_OUT_EOL);
 }

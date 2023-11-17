@@ -128,7 +128,7 @@ static int print(sSys* sys, idxType cnt)
         printf("%.*s", stack[sp + i].str.len, str);
         break;
       default:
-        printf("(%d)\n", stack[sp + i].op);
+        printf("(%d)", stack[sp + i].op);
         return ERR_EXEC_PRINT;
     }
   }
@@ -164,7 +164,6 @@ int exec(sSys* sys, idxType pc)
   sCodeIdx code;
   sCode    value;
   iType    iValue;
-  fType    fValue;
   sCode*   ptr;
 
   ENSURE(pc >= 0, ERR_EXEC_PC);

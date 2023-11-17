@@ -106,53 +106,69 @@ static int level;
 
 static const sSys* sys;
 static const char* s = NULL;
-int lineNum = 1;
-int lineCol = 1;
+static int lineNum = 1;
+static int lineCol = 1;
 
 //=============================================================================
 // Private functions
 //=============================================================================
-static char readCharsWithoutComment(void)
+static int fillBuffer(char* buffer, int len)
 {
   static bool quote = false;
-  char c = sys->getNextChar();
-  switch (c)
+  char c = ' ';
+
+  while (len < READ_AHEAD_BUF_SIZE - 1 && c != '\n')
   {
-    case '"':
-      quote = !quote;
-      break;
-    case '\n':
-      quote = false;
-      break;
-    case '\'':
-      if (!quote)
-        while (c != '\n')
-          c = sys->getNextChar();
-      break;
+    c = sys->getNextChar();
+
+    switch (c)
+    {
+      case '"':
+        quote = !quote;
+        break;
+      case '\n':
+        quote = false;
+        break;
+      case '\'':
+        if (!quote)
+          while (c != '\n')
+          {
+              putchar(c);
+            c = sys->getNextChar();
+          }
+        break;
+    }
+
+    if (c != '\r')
+      buffer[++len] = c;
+
+    if (c == '\0')
+      return len;
+    putchar(c);
   }
-  return c;
+  return len;
 }
 
 //-----------------------------------------------------------------------------
 static void readChars(int cnt, bool skipSpace)
 {
   static char buffer[READ_AHEAD_BUF_SIZE];
+  static int  buflen = 0;
 
   if (!s)
   {
     buffer[0] = '\n';
-    for (int i = 1; i < sizeof(buffer); i++)
-      buffer[i] = readCharsWithoutComment();
+    buflen = fillBuffer(buffer, 0);
     s = &buffer[1];
-    putchar(*s);
   }
 
   while ((cnt > 0 && cnt--) || (skipSpace && *s == ' '))
   {
     lineCol = (*s == '\n') ? (++lineNum, 1) : lineCol + 1;
     memmove(buffer, buffer+1, sizeof(buffer) - 1);
-    buffer[sizeof(buffer)-1] = readCharsWithoutComment();
-    putchar(*s);
+    buflen--;
+    if (buflen == 0 || buffer[buflen] != '\n')
+      buflen = fillBuffer(buffer, buflen);
   }
 }
 
@@ -170,7 +186,6 @@ static bool isKeyword(const char* str, int len)
     { "DO",     2 },
     { "ELSE",   4 },
     { "END",    3 },
-    { "EOF",    3 },
     { "EXIT",   4 },
     { "FOR",    3 },
     { "GOTO",   4 },
@@ -792,7 +807,7 @@ static int parsePrint()
     cnt++;
   }
   ENSURE(chrcon('\n'), ERR_NEWLINE);
-  CHECK(addStr("\n", 1));
+  CHECK(addStr(BASIC_OUT_EOL, strlen(BASIC_OUT_EOL)));
   return addCode(CMD_PRINT, cnt + 1);
 }
 
@@ -802,7 +817,6 @@ static int parseAssign(const char* name, int len)
   bool reg = (name[0] == '$');
   idxType idx;
   CHECK(idx = reg ? regIndex(name, len) : getOrAddVar(name, len));
-  printf("<VarDim %d>", varDim[idx]);
   ENSURE(reg || varDim[idx] == 0, ERR_ARRAY);
   CHECK(parseExpr(0));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
@@ -1180,7 +1194,6 @@ static int parseBlock(void)
     else if (keycmp("ELSE") ||
              keycmp("NEXT") ||
              keycmp("LOOP") ||
-             keycmp("EOF") ||
              (*s == '\0'))
     {
       break;
@@ -1201,22 +1214,34 @@ static int parseBlock(void)
 //=============================================================================
 int parseAll(const sSys* system, int* errline, int* errcol)
 {
-  sys = system;
-  readChars(0, true);
+  // Init variables
+  memset(varName, 0, sizeof(varName));
+  memset(labels, 0, sizeof(labels));
+  memset(subName, 0, sizeof(subName));
+  exitLabel[1] = 0;
+  spAtBeginOfDo  = -1;
+  spAtBeginOfFor = -1;
+  exitDo  = -1;
+  exitFor = -1;
+
+  curArgc = -1;
+
+  sp = 0;
   level = -1;
 
-  int err;
-  if (((err = parseBlock()                 ) >= 0) &&
-      ((err = (keycon("EOF") ? 0 : ERR_EOF)) >= 0) &&
-      ((err = addCode(CMD_END, 0)          ) >= 0))
-    return 0;
+  sys = system;
+  s = NULL;
+  lineNum = 1;
+  lineCol = 1;
 
-  if (s[0] != '\n') // If not EOL, finish line
-  {
-    for (int i = 1; i < READ_AHEAD_BUF_SIZE && s[i] != '\n'; i++)
-      putchar(s[i]);
-    putchar('\n');
-  }
+  // Start reading
+  readChars(0, true);
+
+  int err;
+  if (((err = parseBlock()                ) >= 0) &&
+      ((err = (chrcon('\0') ? 0 : ERR_EOF)) >= 0) &&
+      ((err = addCode(CMD_END, 0)         ) >= 0))
+    return 0;
 
   if (errline) *errline = lineNum;
   if (errcol)  *errcol  = lineCol;
