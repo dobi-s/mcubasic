@@ -44,40 +44,42 @@ static int parseBlock(void);
 //=============================================================================
 static const sOperators operators[] =
 {
-  { 0, " OR",   OP_OR    },
-  { 1, " AND",  OP_AND   },
-  { 2, "NOT ",  OP_NOT   },
-  { 3, "<>",    OP_NEQ   },
-  { 3, "<=",    OP_LTEQ  },
-  { 3, ">=",    OP_GTEQ  },
-  { 3, "<",     OP_LT    },
-  { 3, ">",     OP_GT    },
-  { 3, "=",     OP_EQUAL },
-  { 4, " SHR",  OP_SHR   },
-  { 4, " SHL",  OP_SHL   },
-  { 5, "+",     OP_PLUS  },
-  { 5, "-",     OP_MINUS },
-  { 6, " MOD",  OP_MOD   },
-  { 6, "*",     OP_MULT  },
-  { 6, "/",     OP_DIV   },
-  { 6, "\\",    OP_IDIV  },
-  { 7, "^",     OP_POW   },
-  { 8, "-",     OP_SIGN  },
+  { 0, " XOR",  OP_XOR   },
+  { 1, " OR",   OP_OR    },
+  { 2, " AND",  OP_AND   },
+  { 3, "NOT ",  OP_NOT   },
+  { 4, "<>",    OP_NEQ   },
+  { 4, "<=",    OP_LTEQ  },
+  { 4, ">=",    OP_GTEQ  },
+  { 4, "<",     OP_LT    },
+  { 4, ">",     OP_GT    },
+  { 4, "=",     OP_EQUAL },
+  { 5, " SHR",  OP_SHR   },
+  { 5, " SHL",  OP_SHL   },
+  { 6, "+",     OP_PLUS  },
+  { 6, "-",     OP_MINUS },
+  { 7, " MOD",  OP_MOD   },
+  { 7, "*",     OP_MULT  },
+  { 7, "/",     OP_DIV   },
+  { 7, "\\",    OP_IDIV  },
+  { 8, "^",     OP_POW   },
+  { 9, "-",     OP_SIGN  },
 };
 
 //-----------------------------------------------------------------------------
 static const fParser parser[] =
 {
-  parseDual,      // 0: OR
-  parseDual,      // 1: AND
-  parsePrefix,    // 2: NOT
-  parseDual,      // 3: <>, <=, >=, <, >, =
-  parseDual,      // 4: SHR, SHL, <<, >>
-  parseDual,      // 5: +, -
-  parseDual,      // 6: MOD, \, *, /
-  parseDual,      // 7: ^
-  parsePrefix,    // 8: -
-  parseVal,       // 9: values
+  parseDual,      //  0: XOR
+  parseDual,      //  1: OR
+  parseDual,      //  2: AND
+  parsePrefix,    //  3: NOT
+  parseDual,      //  4: <>, <=, >=, <, >, =
+  parseDual,      //  5: SHR, SHL, <<, >>
+  parseDual,      //  6: +, -
+  parseDual,      //  7: MOD, \, *, /
+  parseDual,      //  8: ^
+  parsePrefix,    //  9: -
+  parseVal,       // 10: values
 };
 
 //=============================================================================
@@ -185,6 +187,7 @@ static bool isKeyword(const char* str, int len)
     { "DIM",    3 },
     { "DO",     2 },
     { "ELSE",   4 },
+    { "ELSEIF", 6 },
     { "END",    3 },
     { "EXIT",   4 },
     { "FOR",    3 },
@@ -472,6 +475,7 @@ static void trackStack(eOp op, int param, int param2)
     case OP_LT:
     case OP_GT:
     case OP_EQUAL:
+    case OP_XOR:
     case OP_OR:
     case OP_AND:
     case OP_SHL:
@@ -900,6 +904,7 @@ static int parseGoto()
 static int parseIf()
 {
   sCodeIdx cond;
+  sCodeIdx eob = {.idx = -1};
 
   CHECK(parseExpr(0));
   CHECK(newCode(&cond, CMD_IF));
@@ -907,19 +912,43 @@ static int parseIf()
   if (chrcon('\n'))  // multi line IF
   {
     CHECK(parseBlock());
+    while (keycon("ELSEIF"))
+    {
+      if (eob.idx >= 0)
+      {
+        CHECK(eob.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+        CHECK(sys->setCode(&eob));
+      }
+      CHECK(newCode(&eob, CMD_GOTO));
+
+      CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(sys->setCode(&cond));
+      CHECK(parseExpr(0));
+      CHECK(newCode(&cond, CMD_IF));
+      ENSURE(keycon("THEN"), ERR_IF_THEN);
+      ENSURE(chrcon('\n'), ERR_NEWLINE);
+      CHECK(parseBlock());
+    }
+    if (eob.idx >= 0)
+    {
+      CHECK(eob.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(sys->setCode(&eob));
+    }
+
     if (keycon("ELSE"))
     {
-      sCodeIdx eob;
       ENSURE(chrcon('\n'), ERR_NEWLINE);
       CHECK(newCode(&eob, CMD_GOTO));
       CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(sys->setCode(&cond));
       CHECK(parseBlock());
       CHECK(eob.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
       CHECK(sys->setCode(&eob));
     }
-    else
+    else // End If
     {
       CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(sys->setCode(&cond));
     }
     ENSURE(keycon("IF"), ERR_IF_ENDIF);
     ENSURE(chrcon('\n'), ERR_NEWLINE);
@@ -928,8 +957,8 @@ static int parseIf()
   {
     CHECK(parseStmt());
     CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+    CHECK(sys->setCode(&cond));
   }
-  CHECK(sys->setCode(&cond));
   return 0;
 }
 
@@ -1191,7 +1220,8 @@ static int parseBlock(void)
       CHECK(parseEnd());
       continue;
     }
-    else if (keycmp("ELSE") ||
+    else if (keycmp("ELSEIF") ||
+             keycmp("ELSE") ||
              keycmp("NEXT") ||
              keycmp("LOOP") ||
              (*s == '\0'))

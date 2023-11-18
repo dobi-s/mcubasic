@@ -310,6 +310,10 @@ int exec(sSys* sys, idxType pc)
           ? (stack[sp].iValue      == stack[sp+1].iValue)
           : (castFloat(&stack[sp]) == castFloat(&stack[sp+1]))) ? -1 : 0));
       return pc + 1;
+    case OP_XOR:
+      ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
+      CHECK(pushInt(castInt(&stack[sp]) ^ castInt(&stack[sp+1])));
+      return pc + 1;
     case OP_OR:
       ENSURE(sp >= 2, ERR_EXEC_STACK_UF); sp -= 2;
       CHECK(pushInt(castInt(&stack[sp]) | castInt(&stack[sp+1])));

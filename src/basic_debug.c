@@ -36,6 +36,7 @@ static const char* opStr(eOp op)
     case OP_LT:         return "<";
     case OP_GT:         return ">";
     case OP_EQUAL:      return "=";
+    case OP_XOR:        return "Xor";
     case OP_OR:         return "Or";
     case OP_AND:        return "And";
     case OP_NOT:        return "Not ";
@@ -95,6 +96,7 @@ static void printCmd(idxType i, sCode* c)
     case OP_LT:
     case OP_GT:
     case OP_EQUAL:
+    case OP_XOR:
     case OP_OR:
     case OP_AND:
     case OP_SHL:

@@ -41,6 +41,7 @@ typedef enum
   OP_LT,            //  X                         -                   -2+1
   OP_GT,            //  X                         -                   -2+1
   OP_EQUAL,         //  X                         -                   -2+1
+  OP_XOR,           //  X                         -                   -2+1
   OP_OR,            //  X                         -                   -2+1
   OP_AND,           //  X                         -                   -2+1
   OP_NOT,           //  X                         -                   -1+1
