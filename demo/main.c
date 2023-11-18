@@ -6,6 +6,7 @@
 #include "basic_common.h"
 #include "basic_bytecode.h"
 #include "basic_parser.h"
+#include "basic_optimizer.h"
 #include "basic_debug.h"
 #include "basic_exec.h"
 
@@ -88,7 +89,7 @@ static int getCode(sCodeIdx* code, int idx)
   if (idx == NEXT_CODE_IDX)
     return myNextCode;
 
-  if (idx < 0 || idx >= CODE_MEM)
+  if (idx < 0 || idx >= myNextCode)
     return ERR_MEM_CODE;
 
   memcpy(&code->code, &myCode[idx], sizeof(sCode));
@@ -174,11 +175,16 @@ int main()
     printf("LINK ERROR %d: %s\n", err, errmsg(err));
     return err;
   }
+  if ((err = optimize(&sys)) < 0)
+  {
+    printf("Optimizer ERROR %d: %s\n", err, errmsg(err));
+    return err;
+  }
 
   printf("\n----------------------------------------------------------------------------\n");
   debugPrintRaw(&sys);
   printf("\n============================================================================\n");
-  printf("'%.*s'", myNextStr, myStrings);
+  debugPrintString(&sys, 0, myNextStr);
   printf("\n============================================================================\n");
 
   idxType pc = 0;

@@ -2,6 +2,12 @@
   "files.associations": {
     "stdio.h": "c",
     "config.h": "c",
-    "typeinfo": "c"
+    "typeinfo": "c",
+    "basic_bytecode.h": "c",
+    "basic_common.h": "c",
+    "basic_debug.h": "c",
+    "basic_exec.h": "c",
+    "basic_optimizer.h": "c",
+    "basic_parser.h": "c"
   }
 }

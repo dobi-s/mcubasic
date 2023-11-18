@@ -59,7 +59,7 @@ static const char* opStr(eOp op)
 }
 
 //-----------------------------------------------------------------------------
-static void printCmd(idxType i, sCode* c)
+static void printCmd(sSys* sys, idxType i, sCode* c)
 {
   switch (c->op)
   {
@@ -119,7 +119,8 @@ static void printCmd(idxType i, sCode* c)
       printf("%3d: %-8s (%5.1f)", i, opStr(c->op), c->fValue);
       break;
     case VAL_STRING:
-      printf("%3d: %-8s (%-2d%3d)", i, opStr(c->op), c->str.len, c->str.start);
+      printf("%3d: %-8s (%-2d%3d) ", i, opStr(c->op), c->str.len, c->str.start);
+      debugPrintString(sys, c->str.start, c->str.len);
       break;
     default:
       printf("%3d: ? %3d ?        ", i, c->op);
@@ -189,7 +190,7 @@ void debugPrintRaw(const sSys* sys)
       break;
     if (c.code.op == CMD_INVALID)
       continue;
-    printCmd(i, &c.code);
+    printCmd(sys, i, &c.code);
     printf(BASIC_OUT_EOL);
   }
 
@@ -215,9 +216,40 @@ void debugPrintRaw(const sSys* sys)
 }
 
 //-----------------------------------------------------------------------------
-void debugState(sCodeIdx* code, sCode* stack, idxType sp, idxType fp)
+void debugPrintString(sSys* sys, idxType start, idxType len)
 {
-  printCmd(code->idx, &code->code);
+  const char* str;
+  if (sys->getString(&str, start, len) < 0)
+    return;
+
+  putchar('"');
+  while (len--)
+  {
+    switch (*str)
+    {
+      case '\0': printf("\\0"); break;
+      case '\a': printf("\\a"); break;
+      case '\b': printf("\\b"); break;
+      case '\f': printf("\\f"); break;
+      case '\n': printf("\\n"); break;
+      case '\r': printf("\\r"); break;
+      case '\t': printf("\\t"); break;
+      case '\v': printf("\\v"); break;
+      default:
+        if (*str >= ' ' && *str < 0x7F)
+          putchar(*str);
+        else
+          printf("\\x%02x", *str);
+    }
+    str++;
+  }
+  putchar('"');
+}
+
+//-----------------------------------------------------------------------------
+void debugState(sSys* sys, sCodeIdx* code, sCode* stack, idxType sp, idxType fp)
+{
+  printCmd(sys, code->idx, &code->code);
   printf(" %3d/%3d:", fp, sp);
   for (int i = 0; i < sp; i++)
     switch (stack[i].op)

@@ -169,8 +169,8 @@ int exec(sSys* sys, idxType pc)
   ENSURE(pc >= 0, ERR_EXEC_PC);
   CHECK(sys->getCode(&code, pc));
 
-  extern void debugState(sCodeIdx* code, sCode* stack, idxType sp, idxType fp);
-  // debugState(&code, stack, sp, fp);
+  extern void debugState(sSys* sys, sCodeIdx* code, sCode* stack, idxType sp, idxType fp);
+  // debugState(sys, &code, stack, sp, fp);
 
   switch (code.code.op)
   {

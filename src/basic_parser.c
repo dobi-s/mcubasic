@@ -131,6 +131,9 @@ static int fillBuffer(char* buffer, int len)
       case '\n':
         quote = false;
         break;
+      case '\t':
+        c = ' ';
+        break;
       case '\'':
         if (!quote)
           while (c != '\n')
