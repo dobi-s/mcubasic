@@ -1,7 +1,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "basic_bytecode.h"
+#include "basic_config.h"
 #include "basic_parser.h"
+#include "basic_debug.h"
 
 //=============================================================================
 // Private functions
@@ -49,7 +51,8 @@ static const char* opStr(eOp op)
     case OP_DIV:        return "/";
     case OP_IDIV:       return "\\";
     case OP_POW:        return "^";
-    case OP_SIGN:       return "-";
+    case OP_SIGN:       return "Sign";
+    case VAL_ZERO:      return "ZERO";
     case VAL_INTEGER:   return "INT";
     case VAL_FLOAT:     return "FLOAT";
     case VAL_STRING:    return "STR";
@@ -59,7 +62,7 @@ static const char* opStr(eOp op)
 }
 
 //-----------------------------------------------------------------------------
-static void printCmd(sSys* sys, idxType i, sCode* c)
+static void printCmd(const sSys* sys, idxType i, sCode* c)
 {
   switch (c->op)
   {
@@ -110,6 +113,7 @@ static void printCmd(sSys* sys, idxType i, sCode* c)
     case OP_POW:
     case OP_NOT:
     case OP_SIGN:
+    case VAL_ZERO:
       printf("%3d: %-8s (     )", i, opStr(c->op));
       break;
     case VAL_INTEGER:
@@ -216,7 +220,7 @@ void debugPrintRaw(const sSys* sys)
 }
 
 //-----------------------------------------------------------------------------
-void debugPrintString(sSys* sys, idxType start, idxType len)
+void debugPrintString(const sSys* sys, idxType start, idxType len)
 {
   const char* str;
   if (sys->getString(&str, start, len) < 0)

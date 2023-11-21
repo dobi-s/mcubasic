@@ -32,7 +32,7 @@ typedef enum
   CMD_SVC,          //  X                         <func>              -<func>.argc
   CMD_GET_GLOBAL,   //  X                         <abs>, <dim>        +1/-
   CMD_GET_LOCAL,    //  X                         <rel>, <dim>        +1/-
-  CMD_GET_PTR,      //  X                         <rel>, <dim>        -
+  CMD_GET_PTR,      //  X                         <rel>               -
   CMD_GET_REG,      //  X                         <reg>               +1
   CMD_CREATE_PTR,   //  X                         <rel>, <dim>        +1        Becomes VAL_PTR on stack
   OP_NEQ,           //  X                         -                   -2+1
@@ -55,6 +55,7 @@ typedef enum
   OP_IDIV,          //  X                         -                   -2+1
   OP_POW,           //  X                         -                   -2+1
   OP_SIGN,          //  X                         -                   -1+1
+  VAL_ZERO,         //  X                         -                   +1
   VAL_INTEGER,      //  X                X        <int>               +1
   VAL_FLOAT,        //  X                X        <float>             +1
   VAL_STRING,       //  X                X        <str>               +1

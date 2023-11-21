@@ -4,9 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "basic_bytecode.h"
+#include "basic_common.h"
+#include "basic_config.h"
 #include "basic_debug.h"
 #include "basic_parser.h"
-#include "basic_common.h"
 
 //=============================================================================
 // Defines
@@ -94,6 +95,9 @@ static idxType labelDst[MAX_LABELS];
 static char    subName[MAX_SUB_NUM][MAX_NAME];
 static idxType subLabel[MAX_SUB_NUM];
 static idxType subArgc[MAX_SUB_NUM];
+#if STAT
+static idxType maxVarNum;
+#endif
 
 static char    exitLabel[2] = "!";
 static idxType spAtBeginOfDo  = -1;
@@ -332,6 +336,10 @@ static int addVar(const char* name, int len, int level)
         varName[idx][len] = '\0';
       varLevel[idx] = level;
       varDim[idx] = 0;
+#if STAT
+      if (maxVarNum < idx + 1)
+        maxVarNum = idx + 1;
+#endif
       return idx;
     }
   }
@@ -492,6 +500,7 @@ static void trackStack(eOp op, int param, int param2)
     case OP_POW:
       sp--;
       break;
+    case VAL_ZERO:
     case VAL_INTEGER:
     case VAL_FLOAT:
     case VAL_STRING:
@@ -583,7 +592,7 @@ static int addInt(int value)
 {
   sCode code =
   {
-    .op     = VAL_INTEGER,
+    .op     = (value == 0) ? VAL_ZERO : VAL_INTEGER,
     .iValue = value
   };
   trackStack(code.op, 0, 0);
@@ -1256,6 +1265,9 @@ int parseAll(const sSys* system, int* errline, int* errcol)
   spAtBeginOfFor = -1;
   exitDo  = -1;
   exitFor = -1;
+#if STAT
+  maxVarNum = 0;
+#endif
 
   curArgc = -1;
 
@@ -1307,4 +1319,27 @@ int link(const sSys* system)
     }
   }
   return 0;
+}
+
+//-----------------------------------------------------------------------------
+void parseStat(int codeSize, int strSize)
+{
+  int maxSubNum = 0;
+  int maxLblNum = 0;
+
+  for (int i = 0; i < MAX_SUB_NUM; i++)
+    if (subName[i][0])
+      maxSubNum++;
+  for (int i = 0; i < MAX_LABELS; i++)
+    if (labels[i][0])
+      maxLblNum++;
+
+  printf(BASIC_OUT_EOL);
+  printf("+-----------------------------------------+" BASIC_OUT_EOL);
+  printf("| Code   %5.1f%% - %4d/%4d instructions  |"  BASIC_OUT_EOL, (100.0f * codeSize ) / CODE_MEM,    codeSize,  CODE_MEM);
+  printf("| Sub    %5.1f%% - %4d/%4d sub functions |"  BASIC_OUT_EOL, (100.0f * maxSubNum) / MAX_SUB_NUM, maxSubNum, MAX_SUB_NUM);
+  printf("| Var    %5.1f%% - %4d/%4d variables     |"  BASIC_OUT_EOL, (100.0f * maxVarNum) / MAX_VAR_NUM, maxVarNum, MAX_VAR_NUM);
+  printf("| Label  %5.1f%% - %4d/%4d labels        |"  BASIC_OUT_EOL, (100.0f * maxLblNum) / MAX_LABELS,  maxLblNum, MAX_LABELS);
+  printf("| Str    %5.1f%% - %4d/%4d bytes         |"  BASIC_OUT_EOL, (100.0f * strSize)   / STRING_MEM,  strSize,   STRING_MEM);
+  printf("+-----------------------------------------+" BASIC_OUT_EOL);
 }

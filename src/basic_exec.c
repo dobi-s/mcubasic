@@ -378,6 +378,9 @@ int exec(sSys* sys, idxType pc)
           ? pushInt(-stack[sp].iValue)
           : pushFloat(-stack[sp].fValue));
       return pc + 1;
+    case VAL_ZERO:
+      CHECK(pushInt(0));
+      return pc + 1;
     case VAL_INTEGER:
     case VAL_FLOAT:
     case VAL_STRING:
@@ -387,4 +390,10 @@ int exec(sSys* sys, idxType pc)
     default:
       return ERR_EXEC_CMD_INV;
   }
+}
+
+//-----------------------------------------------------------------------------
+void exec_reset(void)
+{
+  sp = fp = 0;
 }

@@ -55,5 +55,6 @@
 //=============================================================================
 // Functions
 //=============================================================================
-int parseAll(const sSys* system, int* errline, int* errcol);
-int link(const sSys* system);
+int  parseAll(const sSys* system, int* errline, int* errcol);
+int  link(const sSys* system);
+void parseStat(int codeSize, int strSize);
