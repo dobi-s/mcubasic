@@ -520,8 +520,7 @@ static void trackStack(eOp op, int param, int param2)
 //-----------------------------------------------------------------------------
 static int newCode(sCodeIdx* code, eOp op)
 {
-  CHECK(sys->getCode(code, NEW_CODE));
-  code->code.op = op;
+  CHECK(sys->newCode(code, op));
   trackStack(op, 0, 0);
   return code->idx;
 }
@@ -928,12 +927,12 @@ static int parseIf()
     {
       if (eob.idx >= 0)
       {
-        CHECK(eob.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+        CHECK(eob.code.param = sys->getCodeNextIndex());
         CHECK(sys->setCode(&eob));
       }
       CHECK(newCode(&eob, CMD_GOTO));
 
-      CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(cond.code.param = sys->getCodeNextIndex());
       CHECK(sys->setCode(&cond));
       CHECK(parseExpr(0));
       CHECK(newCode(&cond, CMD_IF));
@@ -943,7 +942,7 @@ static int parseIf()
     }
     if (eob.idx >= 0)
     {
-      CHECK(eob.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(eob.code.param = sys->getCodeNextIndex());
       CHECK(sys->setCode(&eob));
     }
 
@@ -951,15 +950,15 @@ static int parseIf()
     {
       ENSURE(chrcon('\n'), ERR_NEWLINE);
       CHECK(newCode(&eob, CMD_GOTO));
-      CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(cond.code.param = sys->getCodeNextIndex());
       CHECK(sys->setCode(&cond));
       CHECK(parseBlock());
-      CHECK(eob.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(eob.code.param = sys->getCodeNextIndex());
       CHECK(sys->setCode(&eob));
     }
     else // End If
     {
-      CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+      CHECK(cond.code.param = sys->getCodeNextIndex());
       CHECK(sys->setCode(&cond));
     }
     ENSURE(keycon("IF"), ERR_IF_ENDIF);
@@ -968,7 +967,7 @@ static int parseIf()
   else  // single line IF (no ELSE allowed)
   {
     CHECK(parseStmt());
-    CHECK(cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+    CHECK(cond.code.param = sys->getCodeNextIndex());
     CHECK(sys->setCode(&cond));
   }
   return 0;
@@ -982,7 +981,7 @@ static int parseDo()
   idxType oldSp = spAtBeginOfDo;
 
   spAtBeginOfDo = sp;
-  CHECK(hdr = sys->getCode(NULL, NEXT_CODE_IDX));
+  CHECK(hdr = sys->getCodeNextIndex());
   if (keycon("WHILE"))
   {
     CHECK(parseExpr(0));
@@ -1015,12 +1014,12 @@ static int parseDo()
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   if (top.idx != -1)
   {
-    CHECK(top.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+    CHECK(top.code.param = sys->getCodeNextIndex());
     CHECK(sys->setCode(&top));
   }
   if (exitDo >= 0)
   {
-    CHECK(labelDst[exitDo] = sys->getCode(NULL, NEXT_CODE_IDX));
+    CHECK(labelDst[exitDo] = sys->getCodeNextIndex());
     exitDo = -1;
   }
   spAtBeginOfDo = oldSp;
@@ -1052,7 +1051,7 @@ static int parseFor()
   CHECK(parseExpr(0));
   CHECK(addCode(varSet, varIdx));
   ENSURE(keycon("TO"), ERR_FOR_TO);
-  CHECK(hdr = sys->getCode(NULL, NEXT_CODE_IDX));
+  CHECK(hdr = sys->getCodeNextIndex());
   CHECK(addCode(varGet, varIdx));
   CHECK(parseExpr(0));
   CHECK(addCode(OP_LTEQ, 0));
@@ -1068,7 +1067,7 @@ static int parseFor()
   CHECK(addCode(OP_PLUS, 0));
   CHECK(addCode(varSet, varIdx));
   CHECK(addCode(CMD_GOTO, hdr));
-  cond.code.param = sys->getCode(NULL, NEXT_CODE_IDX);
+  cond.code.param = sys->getCodeNextIndex();
   CHECK(sys->setCode(&cond));
 
   idxType cnt = clrVar(level--);
@@ -1076,7 +1075,7 @@ static int parseFor()
     addCode(CMD_POP, cnt - 1);
   if (exitFor >= 0)
   {
-    CHECK(labelDst[exitFor] = sys->getCode(NULL, NEXT_CODE_IDX));
+    CHECK(labelDst[exitFor] = sys->getCodeNextIndex());
     exitFor = -1;
   }
   spAtBeginOfFor = oldSp;
@@ -1111,7 +1110,7 @@ static int parseSub()
 
   CHECK(newCode(&skip, CMD_GOTO));
 
-  subLabel[subIdx] = sys->getCode(NULL, NEXT_CODE_IDX);
+  subLabel[subIdx] = sys->getCodeNextIndex();
   CHECK(varIdx = addVar(name, len, 1));
 
   ENSURE(chrcon('('), ERR_BRACKETS_MISS);
@@ -1145,7 +1144,7 @@ static int parseSub()
   CHECK(addCode(CMD_RETURN, curArgc));
   curArgc = -1;
 
-  CHECK(skip.code.param = sys->getCode(NULL, NEXT_CODE_IDX));
+  CHECK(skip.code.param = sys->getCodeNextIndex());
   return sys->setCode(&skip);
 }
 
@@ -1159,7 +1158,7 @@ static int parseEnd()
 //-----------------------------------------------------------------------------
 static int parseLabel(const char* name, int len)
 {
-  CHECK(lblIndex(name, len, sys->getCode(NULL, NEXT_CODE_IDX)));
+  CHECK(lblIndex(name, len, sys->getCodeNextIndex()));
   if (!chrcon('\n'))
     return parseStmt();
   return 0;
@@ -1298,7 +1297,7 @@ int link(const sSys* system)
 {
   sCodeIdx code;
 
-  for (idxType idx = 0; system->getCode(&code, idx) >= 0; idx++)
+  for (idxType idx = 0; sys->getCode(&code, idx) >= 0; idx += sys->getCodeLen(code.code.op))
   {
     switch (code.code.op)
     {
@@ -1324,6 +1323,7 @@ int link(const sSys* system)
 //-----------------------------------------------------------------------------
 void parseStat(int codeSize, int strSize)
 {
+#if STAT
   int maxSubNum = 0;
   int maxLblNum = 0;
 
@@ -1336,10 +1336,11 @@ void parseStat(int codeSize, int strSize)
 
   printf(BASIC_OUT_EOL);
   printf("+-----------------------------------------+" BASIC_OUT_EOL);
-  printf("| Code   %5.1f%% - %4d/%4d instructions  |"  BASIC_OUT_EOL, (100.0f * codeSize ) / CODE_MEM,    codeSize,  CODE_MEM);
+  printf("| Code   %5.1f%% - %4d/%4d bytes         |"  BASIC_OUT_EOL, (100.0f * codeSize ) / CODE_MEM,    codeSize,  CODE_MEM);
   printf("| Sub    %5.1f%% - %4d/%4d sub functions |"  BASIC_OUT_EOL, (100.0f * maxSubNum) / MAX_SUB_NUM, maxSubNum, MAX_SUB_NUM);
   printf("| Var    %5.1f%% - %4d/%4d variables     |"  BASIC_OUT_EOL, (100.0f * maxVarNum) / MAX_VAR_NUM, maxVarNum, MAX_VAR_NUM);
   printf("| Label  %5.1f%% - %4d/%4d labels        |"  BASIC_OUT_EOL, (100.0f * maxLblNum) / MAX_LABELS,  maxLblNum, MAX_LABELS);
   printf("| Str    %5.1f%% - %4d/%4d bytes         |"  BASIC_OUT_EOL, (100.0f * strSize)   / STRING_MEM,  strSize,   STRING_MEM);
   printf("+-----------------------------------------+" BASIC_OUT_EOL);
+#endif // STAT
 }

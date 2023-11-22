@@ -4,12 +4,6 @@
 #include "basic_config.h"
 
 //=============================================================================
-// Defines
-//=============================================================================
-#define NEW_CODE        -1
-#define NEXT_CODE_IDX   -2
-
-//=============================================================================
 // Typedefs
 //=============================================================================
 typedef enum
@@ -127,9 +121,12 @@ typedef struct
 typedef struct
 {
   char  (*getNextChar)(void);
+  int   (*newCode)(sCodeIdx* code, eOp op);
   int   (*addCode)(const sCode* code);
   int   (*setCode)(const sCodeIdx* code);
   int   (*getCode)(sCodeIdx* code, int idx);
+  int   (*getCodeNextIndex)(void);
+  int   (*getCodeLen)(eOp op);
   int   (*setString)(const char* str, unsigned int len);
   int   (*getString)(const char** str, int start, unsigned int len);
   sReg  regs[MAX_REG_NUM];

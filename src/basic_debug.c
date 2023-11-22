@@ -188,10 +188,8 @@ void debugPrintRaw(const sSys* sys)
 {
   sCodeIdx c;
 
-  for (int i = 0; i < CODE_MEM; i++)
+  for (idxType i = 0; sys->getCode(&c, i) >= 0; i += sys->getCodeLen(c.code.op))
   {
-    if (sys->getCode(&c, i) < 0)
-      break;
     if (c.code.op == CMD_INVALID)
       continue;
     printCmd(sys, i, &c.code);

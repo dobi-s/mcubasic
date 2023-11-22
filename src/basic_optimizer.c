@@ -10,7 +10,7 @@ int optimizeGoto(const sSys* sys)
   sCodeIdx dest;
   int timeout;
 
-  for (idxType idx = 0; sys->getCode(&code, idx) >= 0; idx++)
+  for (idxType idx = 0; sys->getCode(&code, idx) >= 0; idx += sys->getCodeLen(code.code.op))
   {
     if (code.code.op != CMD_GOTO)
       continue;
