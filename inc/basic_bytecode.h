@@ -1,11 +1,12 @@
 #pragma once
 
-#include <stdint.h>
 #include "basic_config.h"
+#include <stdint.h>
 
 //=============================================================================
 // Typedefs
 //=============================================================================
+// clang-format off
 typedef enum
 {                   // Code    Linker    Stack    Arg                 Stack
   CMD_INVALID = 0,  //  X                         -                   -
@@ -56,36 +57,37 @@ typedef enum
   VAL_PTR,          //  X                X        <abs>, <dim>        +1
   VAL_LABEL,        //                   X        <lbl>
 } eOp;
+// clang-format on
 
 //-----------------------------------------------------------------------------
-typedef int32_t   iType;      // Integer value
-typedef float     fType;      // Float value
-typedef int16_t   idxType;    // Code/var/reg/str index
-typedef int16_t   sLenType;   // String length
+typedef int32_t iType;     // Integer value
+typedef float   fType;     // Float value
+typedef int16_t idxType;   // Code/var/reg/str index
+typedef int16_t sLenType;  // String length
 
 //-----------------------------------------------------------------------------
 typedef struct sCode
 {
-  eOp           op;
+  eOp op;
   union
   {
-    iType       iValue;   // VAL_INTEGER
-    fType       fValue;   // VAL_FLOAT
-    struct                //
-    {                     //
-      idxType   param;    // var (VAR, LET), reg (REG, SET), lbl (IF, GOTO, GOSUB)
-      idxType   param2;   // dim (VAR, LET)
-    };                    //
-    struct                // VAL_STRING
-    {                     //
-      idxType   start;    // - start address
-      sLenType  len;      // - length
-    } str;                //
-    struct                // VAL_LABEL
-    {                     //
-      idxType   lbl;      // - return address
-      idxType   fp;       // - frame pointer
-    } lbl;                //
+    iType iValue;      // VAL_INTEGER
+    fType fValue;      // VAL_FLOAT
+    struct             //
+    {                  //
+      idxType param;   // var (VAR, LET), reg (REG, SET), lbl (IF, GOTO, GOSUB)
+      idxType param2;  // dim (VAR, LET)
+    };                 //
+    struct             // VAL_STRING
+    {                  //
+      idxType  start;  // - start address
+      sLenType len;    // - length
+    } str;             //
+    struct             // VAL_LABEL
+    {                  //
+      idxType lbl;     // - return address
+      idxType fp;      // - frame pointer
+    } lbl;             //
   };
 } sCode;
 
@@ -116,19 +118,18 @@ typedef struct
   int         argc;
 } sSvc;
 
-
 //-----------------------------------------------------------------------------
 typedef struct
 {
-  char  (*getNextChar)(void);
-  int   (*newCode)(sCodeIdx* code, eOp op);
-  int   (*addCode)(const sCode* code);
-  int   (*setCode)(const sCodeIdx* code);
-  int   (*getCode)(sCodeIdx* code, int idx);
-  int   (*getCodeNextIndex)(void);
-  int   (*getCodeLen)(eOp op);
-  int   (*setString)(const char* str, unsigned int len);
-  int   (*getString)(const char** str, int start, unsigned int len);
-  sReg  regs[MAX_REG_NUM];
-  sSvc  svcs[MAX_SVC_NUM];
+  char (*getNextChar)(void);
+  int (*newCode)(sCodeIdx* code, eOp op);
+  int (*addCode)(const sCode* code);
+  int (*setCode)(const sCodeIdx* code);
+  int (*getCode)(sCodeIdx* code, int idx);
+  int (*getCodeNextIndex)(void);
+  int (*getCodeLen)(eOp op);
+  int (*setString)(const char* str, unsigned int len);
+  int (*getString)(const char** str, int start, unsigned int len);
+  sReg regs[MAX_REG_NUM];
+  sSvc svcs[MAX_SVC_NUM];
 } sSys;

@@ -1,15 +1,16 @@
-#include <stdbool.h>
-#include <stdio.h>
+#include "basic_debug.h"
 #include "basic_bytecode.h"
 #include "basic_config.h"
 #include "basic_parser.h"
-#include "basic_debug.h"
+#include <stdbool.h>
+#include <stdio.h>
 
 //=============================================================================
 // Private functions
 //=============================================================================
 static const char* opStr(eOp op)
 {
+  // clang-format off
   switch (op)
   {
     case CMD_PRINT:     return "Print";
@@ -59,6 +60,7 @@ static const char* opStr(eOp op)
     case VAL_PTR:       return "PTR";
     default:            return "(?)";
   }
+  // clang-format on
 }
 
 //-----------------------------------------------------------------------------
@@ -137,6 +139,7 @@ static void printCmd(const sSys* sys, idxType i, sCode* c)
 //=============================================================================
 const char* errmsg(int err)
 {
+  // clang-format off
   switch (err)
   {
     case ERR_NAME_INV:        return "Invalid name";
@@ -178,9 +181,13 @@ const char* errmsg(int err)
     case ERR_EXIT_DO:         return "Exit Do outside Do .. Loop";
     case ERR_EXIT_FOR:        return "Exit For outside For .. Next";
     case ERR_EXIT_SUB:        return "Exit Sub outside sub";
+    case ERR_DIM_INV:         return "Invalid array dimension";
+    case ERR_NOT_ARRAY:       return "Variable is not an array";
+    case ERR_ARRAY:           return "Variable is an array";
     case ERR_NOT_IMPL:        return "Not implemented yet";
     default:                  return "(unknown)";
   }
+  // clang-format on
 }
 
 //-----------------------------------------------------------------------------
@@ -195,26 +202,6 @@ void debugPrintRaw(const sSys* sys)
     printCmd(sys, i, &c.code);
     printf(BASIC_OUT_EOL);
   }
-
-  // printf("  %3d Code\n", nextCode);
-  // printf("\n");
-
-  // printf("Strings:\n");
-  // printf("  '%.*s'\n", nextStr, strings);
-  // printf("  %d Byte\n", nextStr);
-  // printf("\n");
-
-  // printf("Variables:\n");
-  // for (int i = 0; i < ARRAY_SIZE(varname); i++)
-  //   if (varname[i][0])
-  //     printf("  %3d: '%.*s'\n", i, MAX_NAME, varname[i]);
-  // printf("\n");
-
-  // printf("Labels:\n");
-  // for (int i = 0; i < ARRAY_SIZE(labels); i++)
-  //   if (labels[i][0])
-  //     printf("  %3d: '%-10.*s' -> %3d\n", i, MAX_NAME, labels[i], labelDst[i]);
-  // printf("\n");
 }
 
 //-----------------------------------------------------------------------------
@@ -229,6 +216,7 @@ void debugPrintString(const sSys* sys, idxType start, idxType len)
   {
     switch (*str)
     {
+      // clang-format off
       case '\0': printf("\\0"); break;
       case '\a': printf("\\a"); break;
       case '\b': printf("\\b"); break;
@@ -237,6 +225,7 @@ void debugPrintString(const sSys* sys, idxType start, idxType len)
       case '\r': printf("\\r"); break;
       case '\t': printf("\\t"); break;
       case '\v': printf("\\v"); break;
+      // clang-format on
       default:
         if (*str >= ' ' && *str < 0x7F)
           putchar(*str);

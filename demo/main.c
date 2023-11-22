@@ -2,8 +2,8 @@
 #include "basic_common.h"
 #include "basic_debug.h"
 #include "basic_exec.h"
-#include "basic_parser.h"
 #include "basic_optimizer.h"
+#include "basic_parser.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -17,8 +17,8 @@
 //=============================================================================
 // Private variables
 //=============================================================================
-static char    codeMem[CODE_MEM];
-static char    strings[STRING_MEM];
+static char codeMem[CODE_MEM];
+static char strings[STRING_MEM];
 
 // loading
 static idxType codeLen = 0;
@@ -31,8 +31,11 @@ static int     sleepMs = 0;
 
 // hardware - implement your own functions
 #define IO_LED 0
-static bool    led;
-static int     sysTickMs() { return GetTickCount(); };
+static bool led;
+static int  sysTickMs()
+{
+  return GetTickCount();
+};
 
 //=============================================================================
 // Registers
@@ -48,7 +51,7 @@ static int getTick(sCode* val, int cookie)
 static int getDout(sCode* val, int cookie)
 {
   val->op     = VAL_INTEGER;
-  val->iValue = led ? -1 : 0;   // TODO: read HW
+  val->iValue = led ? -1 : 0;  // TODO: read HW
   return 0;
 }
 
@@ -75,7 +78,7 @@ static int iif(sCode* args, sCode* mem)
   else
     return ERR_EXEC_VAR_INV;
 
-  memcpy(&args[0], &args[cond?2:3], sizeof(args[0]));
+  memcpy(&args[0], &args[cond ? 2 : 3], sizeof(args[0]));
   return 0;
 }
 
@@ -176,7 +179,7 @@ static int addCode(const sCode* code)
   ENSURE(codeLen + len <= CODE_MEM, ERR_MEM_CODE);
   codeMem[idx] = code->op;
   if (len > 1)
-    memcpy(&codeMem[idx+1], &code->param, len - 1);
+    memcpy(&codeMem[idx + 1], &code->param, len - 1);
   codeLen += len;
   return idx;
 }
@@ -186,10 +189,10 @@ static int setCode(const sCodeIdx* code)
 {
   if (!code || code->idx >= CODE_MEM)
     return ERR_MEM_CODE;
-  int len = getCodeLen(code->code.op);
+  int len            = getCodeLen(code->code.op);
   codeMem[code->idx] = code->code.op;
   if (len > 1)
-    memcpy(&codeMem[code->idx+1], &code->code.param, len - 1);
+    memcpy(&codeMem[code->idx + 1], &code->code.param, len - 1);
   return 0;
 }
 
@@ -209,11 +212,11 @@ static int getCode(sCodeIdx* code, int idx)
   if (idx < 0 || idx >= CODE_MEM)
     return ERR_MEM_CODE;
 
-  code->idx = idx;
+  code->idx     = idx;
   code->code.op = (eOp)codeMem[idx];
-  int len = getCodeLen(code->code.op);
+  int len       = getCodeLen(code->code.op);
   if (len > 1)
-    memcpy(&code->code.param, &codeMem[code->idx+1], len - 1);
+    memcpy(&code->code.param, &codeMem[code->idx + 1], len - 1);
   return idx;
 }
 
@@ -316,7 +319,6 @@ static bool load(void)
   return true;
 }
 
-
 //=============================================================================
 // Public functions
 //=============================================================================
@@ -358,15 +360,19 @@ bool BasicTask(int interval)
 //=============================================================================
 int main()
 {
-
-
-  printf(BASIC_OUT_EOL "=[ Load ]==================================================================" BASIC_OUT_EOL);
+  printf(BASIC_OUT_EOL
+         "=[ Load ]==========================================================="
+         "=" BASIC_OUT_EOL);
   {
     const char* const filename = "demo\\test.bas";
-    int line, col, err;
+    int               line, col, err;
 
     file = fopen(filename, "r");
-    if (!file) { printf("Error open file" BASIC_OUT_EOL); return -1; }
+    if (!file)
+    {
+      printf("Error open file" BASIC_OUT_EOL);
+      return -1;
+    }
 
     clear();
 
@@ -374,7 +380,7 @@ int main()
     {
       printf("%*s" BASIC_OUT_EOL, col, "^");
       printf("ERROR %d in Line %d, Col %d: %s" BASIC_OUT_EOL, err, line, col,
-            errmsg(err));
+             errmsg(err));
       return 1;
     }
     if ((err = link(&sys)) < 0)
@@ -391,7 +397,9 @@ int main()
     save();
   }
 
-  printf(BASIC_OUT_EOL "=[ List ]==================================================================" BASIC_OUT_EOL);
+  printf(BASIC_OUT_EOL
+         "=[ List ]==========================================================="
+         "=" BASIC_OUT_EOL);
   {
     debugPrintRaw(&sys);
     printf("Str = '");
@@ -405,10 +413,12 @@ int main()
     printf("'" BASIC_OUT_EOL);
   }
 
-  printf(BASIC_OUT_EOL "=[ Exec ]==================================================================" BASIC_OUT_EOL);
+  printf(BASIC_OUT_EOL
+         "=[ Exec ]==========================================================="
+         "=" BASIC_OUT_EOL);
   {
     const int interval = 10;
-    int lastCall = sysTickMs();
+    int       lastCall = sysTickMs();
 
     BasicInit();
 
@@ -416,10 +426,11 @@ int main()
     while (1)
     {
       if (!BasicTask(interval))
-        break;    // embedded systems usually don't end the task loop
+        break;  // embedded systems usually don't end the task loop
 
       // wait until interval expired (to some other tasks)
-      while (sysTickMs() - lastCall < interval);
+      while (sysTickMs() - lastCall < interval)
+        ;
     }
   }
 }

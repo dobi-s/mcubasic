@@ -1,21 +1,21 @@
+#include "basic_parser.h"
+#include "basic_bytecode.h"
+#include "basic_common.h"
+#include "basic_config.h"
+#include "basic_debug.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "basic_bytecode.h"
-#include "basic_common.h"
-#include "basic_config.h"
-#include "basic_debug.h"
-#include "basic_parser.h"
 
 //=============================================================================
 // Defines
 //=============================================================================
-#define READ_AHEAD_BUF_SIZE     (MAX_NAME + 2)
+#define READ_AHEAD_BUF_SIZE (MAX_NAME + 2)
 
-#define UPPER_CASE(x)  (((x) >= 'a' && (x) <= 'z') ? ((x) & 0xDF) : (x))
-#define parseExpr(l)   (parser[l](l))
+#define UPPER_CASE(x)       (((x) >= 'a' && (x) <= 'z') ? ((x)&0xDF) : (x))
+#define parseExpr(l)        (parser[l](l))
 
 //=============================================================================
 // Typedefs
@@ -43,6 +43,7 @@ static int parseBlock(void);
 //=============================================================================
 // Constants
 //=============================================================================
+// clang-format off
 static const sOperators operators[] =
 {
   { 0, " XOR",  OP_XOR   },
@@ -82,6 +83,7 @@ static const fParser parser[] =
   parsePrefix,    //  9: -
   parseVal,       // 10: values
 };
+// clang-format on
 
 //=============================================================================
 // Private variables
@@ -99,11 +101,11 @@ static idxType subArgc[MAX_SUB_NUM];
 static idxType maxVarNum;
 #endif
 
-static char    exitLabel[2] = "!";
+static char    exitLabel[2]   = "!";
 static idxType spAtBeginOfDo  = -1;
 static idxType spAtBeginOfFor = -1;
-static idxType exitDo  = -1;
-static idxType exitFor = -1;
+static idxType exitDo         = -1;
+static idxType exitFor        = -1;
 
 static int curArgc = -1;
 
@@ -111,9 +113,9 @@ static int sp = 0;  // Stack pointer tracking
 static int level;
 
 static const sSys* sys;
-static const char* s = NULL;
-static int lineNum = 1;
-static int lineCol = 1;
+static const char* s       = NULL;
+static int         lineNum = 1;
+static int         lineCol = 1;
 
 //=============================================================================
 // Private functions
@@ -121,7 +123,7 @@ static int lineCol = 1;
 static int fillBuffer(char* buffer, int len)
 {
   static bool quote = false;
-  char c = ' ';
+  char        c     = ' ';
 
   while (len < READ_AHEAD_BUF_SIZE - 1 && c != '\n')
   {
@@ -142,7 +144,7 @@ static int fillBuffer(char* buffer, int len)
         if (!quote)
           while (c != '\n')
           {
-              putchar(c);
+            putchar(c);
             c = sys->getNextChar();
           }
         break;
@@ -167,14 +169,14 @@ static void readChars(int cnt, bool skipSpace)
   if (!s)
   {
     buffer[0] = '\n';
-    buflen = fillBuffer(buffer, 0);
-    s = &buffer[1];
+    buflen    = fillBuffer(buffer, 0);
+    s         = &buffer[1];
   }
 
   while ((cnt > 0 && cnt--) || (skipSpace && *s == ' '))
   {
     lineCol = (*s == '\n') ? (++lineNum, 1) : lineCol + 1;
-    memmove(buffer, buffer+1, sizeof(buffer) - 1);
+    memmove(buffer, buffer + 1, sizeof(buffer) - 1);
     buflen--;
     if (buflen == 0 || buffer[buflen] != '\n')
       buflen = fillBuffer(buffer, buflen);
@@ -184,10 +186,11 @@ static void readChars(int cnt, bool skipSpace)
 //-----------------------------------------------------------------------------
 static bool isKeyword(const char* str, int len)
 {
+  // clang-format off
   const struct
   {
     const char* name;
-    int len;
+    int         len;
   } keywords[] =
   {
     { "AND",    3 },
@@ -216,14 +219,17 @@ static bool isKeyword(const char* str, int len)
     { "UNTIL",  5 },
     { "WHILE",  5 },
   };
+  // clang-format on
 
   for (int i = 0; i < ARRAY_SIZE(keywords); i++)
   {
     if (len == keywords[i].len)
     {
       int j;
-      for (j = 0; j < len && keywords[i].name[j] == (str[j] & 0xDF); j++);
-      if (j == len) return true;
+      for (j = 0; j < len && keywords[i].name[j] == (str[j] & 0xDF); j++)
+        ;
+      if (j == len)
+        return true;
     }
   }
   return false;
@@ -236,7 +242,8 @@ static int keycmp(const char* kw)
     return 0;
 
   int l = 0;
-  while (kw[l] && ((s[l] & 0xDF) == kw[l])) l++;
+  while (kw[l] && ((s[l] & 0xDF) == kw[l]))
+    l++;
   return (kw[l] == '\0' && (s[l] == ' ' || s[l] == '\n')) ? l : 0;
 }
 
@@ -253,7 +260,8 @@ static int keycon(const char* kw)
 static int strcon(const char* str)
 {
   int l = 0;
-  while (str[l] && (UPPER_CASE(s[l]) == str[l])) l++;
+  while (str[l] && (UPPER_CASE(s[l]) == str[l]))
+    l++;
   if (str[l])
     return 0;
   if (l > 0)
@@ -287,6 +295,7 @@ static int namecon(const char** name)
 {
   static char buf[MAX_NAME];
 
+  // clang-format off
   ENSURE((*s >= 'A' && *s <= 'Z') ||
          (*s >= 'a' && *s <= 'z') ||
          (*s == '$' || *s == '_'), ERR_NAME_INV);
@@ -300,8 +309,9 @@ static int namecon(const char** name)
   {
     l++;
   }
+  // clang-format on
 
-  ENSURE (!isKeyword(s, l), ERR_NAME_KEYWORD);
+  ENSURE(!isKeyword(s, l), ERR_NAME_KEYWORD);
 
   memcpy(buf, s, l);
   readChars(l, true);
@@ -335,7 +345,7 @@ static int addVar(const char* name, int len, int level)
       if (len < MAX_NAME)
         varName[idx][len] = '\0';
       varLevel[idx] = level;
-      varDim[idx] = 0;
+      varDim[idx]   = 0;
 #if STAT
       if (maxVarNum < idx + 1)
         maxVarNum = idx + 1;
@@ -434,7 +444,8 @@ static int lblIndex(const char* name, int len, int dst)
     if (namecmp(labels[idx], name, len))
     {
       ENSURE(dst == -1 || labelDst[idx] == (idxType)-1, ERR_LABEL_DUPL);
-      if (dst != -1) labelDst[idx] = dst;
+      if (dst != -1)
+        labelDst[idx] = dst;
       return idx;
     }
   }
@@ -528,14 +539,10 @@ static int newCode(sCodeIdx* code, eOp op)
 //-----------------------------------------------------------------------------
 static int addCode(eOp op, int param)
 {
-  sCode code =
-  {
-    .op     = op,
-    .param  = param,
-    .param2 = 0
-  };
-  if (op != CMD_GET_LOCAL && op != CMD_LET_LOCAL && // Local var can have neg param
-      op != CMD_GET_PTR   && op != CMD_LET_PTR   )
+  sCode code = {.op = op, .param = param, .param2 = 0};
+  // Local var and ptr can have neg param
+  if (op != CMD_GET_LOCAL && op != CMD_LET_LOCAL && op != CMD_GET_PTR &&
+      op != CMD_LET_PTR)
     CHECK(param);
   trackStack(op, param, 0);
   return sys->addCode(&code);
@@ -544,15 +551,10 @@ static int addCode(eOp op, int param)
 //-----------------------------------------------------------------------------
 static int addCode2(eOp op, int param, int param2)
 {
-  sCode code =
-  {
-    .op     = op,
-    .param  = param,
-    .param2 = param2
-  };
-  if (op != CMD_GET_LOCAL && op != CMD_LET_LOCAL && // Local var can have neg param
-      op != CMD_GET_PTR   && op != CMD_LET_PTR   &&
-      op != CMD_CREATE_PTR)
+  sCode code = {.op = op, .param = param, .param2 = param2};
+  // Local var and ptr can have neg param / param 2
+  if (op != CMD_GET_LOCAL && op != CMD_LET_LOCAL && op != CMD_GET_PTR &&
+      op != CMD_LET_PTR && op != CMD_CREATE_PTR)
     CHECK(param);
   if (op != CMD_CREATE_PTR)
     CHECK(param2);
@@ -563,12 +565,8 @@ static int addCode2(eOp op, int param, int param2)
 //-----------------------------------------------------------------------------
 static int addStr(const char* str, sLenType len)
 {
-  sCode code =
-  {
-    .op        = VAL_STRING,
-    .str.start = sys->setString(str, len),
-    .str.len   = len
-  };
+  sCode code = {
+      .op = VAL_STRING, .str.start = sys->setString(str, len), .str.len = len};
   CHECK(code.str.start);
   trackStack(code.op, 0, 0);
   return sys->addCode(&code);
@@ -577,11 +575,7 @@ static int addStr(const char* str, sLenType len)
 //-----------------------------------------------------------------------------
 static int addFloat(float value)
 {
-  sCode code =
-  {
-    .op     = VAL_FLOAT,
-    .fValue = value
-  };
+  sCode code = {.op = VAL_FLOAT, .fValue = value};
   trackStack(code.op, 0, 0);
   return sys->addCode(&code);
 }
@@ -589,11 +583,7 @@ static int addFloat(float value)
 //-----------------------------------------------------------------------------
 static int addInt(int value)
 {
-  sCode code =
-  {
-    .op     = (value == 0) ? VAL_ZERO : VAL_INTEGER,
-    .iValue = value
-  };
+  sCode code = {.op = (value == 0) ? VAL_ZERO : VAL_INTEGER, .iValue = value};
   trackStack(code.op, 0, 0);
   return sys->addCode(&code);
 }
@@ -605,7 +595,8 @@ static int parseArray(idxType idx)
   CHECK(parseExpr(0));
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   if (varDim[idx] > 0)
-    return addCode2(varLevel[idx] ? CMD_GET_LOCAL : CMD_GET_GLOBAL, varIndex[idx], varDim[idx]);
+    return addCode2(varLevel[idx] ? CMD_GET_LOCAL : CMD_GET_GLOBAL,
+                    varIndex[idx], varDim[idx]);
   ENSURE(varLevel[idx] > 0, ERR_NOT_IMPL);  // Ptr can't exist globally
   return addCode(CMD_GET_PTR, varIndex[idx]);
 }
@@ -613,10 +604,10 @@ static int parseArray(idxType idx)
 //-----------------------------------------------------------------------------
 static int parseFunc(const char* name, int len, bool sub)
 {
-  int argc = 0;
-  idxType idx = svcIndex(name, len);
-  bool svc = (idx >= 0);
-  char end = sub ? '\n' : ')';
+  int     argc = 0;
+  idxType idx  = svcIndex(name, len);
+  bool    svc  = (idx >= 0);
+  char    end  = sub ? '\n' : ')';
 
   if (!svc)
     CHECK(idx = subIndex(name, len));
@@ -688,9 +679,9 @@ static int parseVal(int level)
   {
     readChars(2, false);
     char* end;
-    int res = strtoul(s, &end, 16);
+    int   res = strtoul(s, &end, 16);
     ENSURE(end > s, ERR_NUM_INV);
-    readChars(end-s, true);
+    readChars(end - s, true);
     return addInt(res);
   }
 
@@ -698,15 +689,15 @@ static int parseVal(int level)
   if (*s >= '0' && *s <= '9')
   {
     char* end;
-    int res = strtoul(s, &end, 10);
+    int   res = strtoul(s, &end, 10);
     ENSURE(end > s, ERR_NUM_INV);
-    if (*end == '.' || *end == 'E' || *end == 'e') // float
+    if (*end == '.' || *end == 'E' || *end == 'e')  // float
     {
       float val = strtof(s, &end);
-      readChars(end-s, true);
+      readChars(end - s, true);
       return addFloat(val);
     }
-    readChars(end-s, true);
+    readChars(end - s, true);
     return addInt(res);
   }
 
@@ -730,8 +721,9 @@ static int parseVal(int level)
   // Variables
   idxType idx;
   CHECK(idx = getVar(name, len));
-  if (varDim[idx] != 0) // Array without index
-    return addCode2(varLevel[idx] ? CMD_CREATE_PTR : VAL_PTR, varIndex[idx], varDim[idx]);
+  if (varDim[idx] != 0)  // Array without index
+    return addCode2(varLevel[idx] ? CMD_CREATE_PTR : VAL_PTR, varIndex[idx],
+                    varDim[idx]);
   return addCode(varLevel[idx] ? CMD_GET_LOCAL : CMD_GET_GLOBAL, varIndex[idx]);
 }
 
@@ -740,7 +732,7 @@ static int parseDual(int level)
 {
   int op;
 
-  CHECK(parseExpr(level+1));
+  CHECK(parseExpr(level + 1));
 
   while (1)
   {
@@ -749,14 +741,14 @@ static int parseDual(int level)
       if (operators[op].level != level)
         continue;
 
-      if ((operators[op].str[0] == ' ' && keycon(operators[op].str+1)) ||
+      if ((operators[op].str[0] == ' ' && keycon(operators[op].str + 1)) ||
           (operators[op].str[0] != ' ' && strcon(operators[op].str)))
         break;
     }
     if (op >= ARRAY_SIZE(operators))
       return 0;
 
-    CHECK(parseExpr(level+1));
+    CHECK(parseExpr(level + 1));
     addCode(operators[op].operator, 0);
   }
 }
@@ -775,7 +767,7 @@ static int parsePrefix(int level)
       break;
   }
   if (op >= ARRAY_SIZE(operators))
-    return parseExpr(level+1);
+    return parseExpr(level + 1);
 
   CHECK(parseExpr(level));
   return addCode(operators[op].operator, 0);
@@ -796,14 +788,14 @@ static int parseDim()
     dim = strtoul(s, &end, 10);
     ENSURE(end > s, ERR_NUM_INV);
     ENSURE(dim > 0, ERR_DIM_INV);
-    readChars(end-s, true);
+    readChars(end - s, true);
     ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   }
   ENSURE(chrcon('\n'), ERR_NEWLINE);
 
   CHECK(idx = addVar(name, len, level));
   varIndex[idx] = sp;
-  varDim[idx] = dim;
+  varDim[idx]   = dim;
   for (int i = 1; i < dim; i++)
     CHECK(addInt(0));
   return addInt(0);
@@ -829,7 +821,7 @@ static int parsePrint()
 //-----------------------------------------------------------------------------
 static int parseAssign(const char* name, int len)
 {
-  bool reg = (name[0] == '$');
+  bool    reg = (name[0] == '$');
   idxType idx;
   CHECK(idx = reg ? regIndex(name, len) : getOrAddVar(name, len));
   ENSURE(reg || varDim[idx] == 0, ERR_ARRAY);
@@ -845,7 +837,7 @@ static int parseAssign(const char* name, int len)
 static int parseArrayAssign(const char* name, int len)
 {
   idxType idx;
-  ENSURE(name[0] != '$', ERR_NOT_IMPL); // TODO: Implement array registers
+  ENSURE(name[0] != '$', ERR_NOT_IMPL);  // TODO: Implement array registers
   CHECK(idx = getVar(name, len));
   ENSURE(varDim[idx] != 0, ERR_NOT_ARRAY);
   CHECK(parseExpr(0));
@@ -854,7 +846,8 @@ static int parseArrayAssign(const char* name, int len)
   CHECK(parseExpr(0));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   if (varDim[idx] > 0)
-    return addCode2(varLevel[idx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL, varIndex[idx], varDim[idx]);
+    return addCode2(varLevel[idx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL,
+                    varIndex[idx], varDim[idx]);
   ENSURE(varLevel[idx] > 0, ERR_NOT_IMPL);  // Ptr can't exist globally
   return addCode(CMD_LET_PTR, varIndex[idx]);
 }
@@ -905,7 +898,7 @@ static int parseReturn()
 static int parseGoto()
 {
   const char* name;
-  int len;
+  int         len;
   CHECK(len = namecon(&name));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   return addCode(LNK_GOTO, lblIndex(name, len, -1));
@@ -956,7 +949,7 @@ static int parseIf()
       CHECK(eob.code.param = sys->getCodeNextIndex());
       CHECK(sys->setCode(&eob));
     }
-    else // End If
+    else  // End If
     {
       CHECK(cond.code.param = sys->getCodeNextIndex());
       CHECK(sys->setCode(&cond));
@@ -976,9 +969,9 @@ static int parseIf()
 //-----------------------------------------------------------------------------
 static int parseDo()
 {
-  sCodeIdx top = { .idx = -1 };
-  idxType hdr;
-  idxType oldSp = spAtBeginOfDo;
+  sCodeIdx top = {.idx = -1};
+  idxType  hdr;
+  idxType  oldSp = spAtBeginOfDo;
 
   spAtBeginOfDo = sp;
   CHECK(hdr = sys->getCodeNextIndex());
@@ -1037,7 +1030,7 @@ static int parseFor()
   const char* name;
   int         len;
   idxType     oldSp = spAtBeginOfFor;
-  spAtBeginOfFor = sp;
+  spAtBeginOfFor    = sp;
 
   level++;
   ENSURE(*s != '$', ERR_VAR_NAME);
@@ -1085,7 +1078,8 @@ static int parseFor()
 //-----------------------------------------------------------------------------
 static int parseRem()
 {
-  while (*s != '\n') readChars(1, true);
+  while (*s != '\n')
+    readChars(1, true);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
   return 0;
 }
@@ -1125,7 +1119,7 @@ static int parseSub()
         varDim[varIdx] = -1;
         ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
       }
-    } while(chrcon(','));
+    } while (chrcon(','));
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   ENSURE(chrcon('\n'), ERR_NEWLINE);
 
@@ -1136,7 +1130,7 @@ static int parseSub()
   sp = 1;
   level++;
   CHECK(parseBlock());
-  CHECK(clrVar(level--)); // don't pop, this is done by return
+  CHECK(clrVar(level--));  // don't pop, this is done by return
   sp = oldSp;
 
   ENSURE(keycon("SUB"), ERR_END_SUB_EXP);
@@ -1168,9 +1162,10 @@ static int parseLabel(const char* name, int len)
 static int parseStmt(void)
 {
   const char* name;
-  int len;
+  int         len;
 
-  while (chrcon('\n'));
+  while (chrcon('\n'))
+    ;
 
   if (keycon("DIM"))
     return parseDim();
@@ -1222,23 +1217,26 @@ static int parseBlock(void)
   while (1)
   {
     if (chrcon('\n'))
-      continue; // Skip empty lines
+      continue;  // Skip empty lines
 
+    // clang-format off
     if (keycon("END"))
     {
-      if (keycmp("IF") || keycmp("SUB"))
+      if (keycmp("IF") ||
+          keycmp("SUB"))
         break;
       CHECK(parseEnd());
       continue;
     }
     else if (keycmp("ELSEIF") ||
-             keycmp("ELSE") ||
-             keycmp("NEXT") ||
-             keycmp("LOOP") ||
+             keycmp("ELSE")   ||
+             keycmp("NEXT")   ||
+             keycmp("LOOP")   ||
              (*s == '\0'))
     {
       break;
     }
+    // clang-format on
 
     CHECK(parseStmt());
   }
@@ -1259,22 +1257,22 @@ int parseAll(const sSys* system, int* errline, int* errcol)
   memset(varName, 0, sizeof(varName));
   memset(labels, 0, sizeof(labels));
   memset(subName, 0, sizeof(subName));
-  exitLabel[1] = 0;
+  exitLabel[1]   = 0;
   spAtBeginOfDo  = -1;
   spAtBeginOfFor = -1;
-  exitDo  = -1;
-  exitFor = -1;
+  exitDo         = -1;
+  exitFor        = -1;
 #if STAT
   maxVarNum = 0;
 #endif
 
   curArgc = -1;
 
-  sp = 0;
+  sp    = 0;
   level = -1;
 
-  sys = system;
-  s = NULL;
+  sys     = system;
+  s       = NULL;
   lineNum = 1;
   lineCol = 1;
 
@@ -1282,13 +1280,15 @@ int parseAll(const sSys* system, int* errline, int* errcol)
   readChars(0, true);
 
   int err;
-  if (((err = parseBlock()                ) >= 0) &&
+  if (((err = parseBlock()) >= 0) &&
       ((err = (chrcon('\0') ? 0 : ERR_EOF)) >= 0) &&
-      ((err = addCode(CMD_END, 0)         ) >= 0))
+      ((err = addCode(CMD_END, 0)) >= 0))
     return 0;
 
-  if (errline) *errline = lineNum;
-  if (errcol)  *errcol  = lineCol;
+  if (errline)
+    *errline = lineNum;
+  if (errcol)
+    *errcol = lineCol;
   return err;
 }
 
@@ -1297,7 +1297,8 @@ int link(const sSys* system)
 {
   sCodeIdx code;
 
-  for (idxType idx = 0; sys->getCode(&code, idx) >= 0; idx += sys->getCodeLen(code.code.op))
+  for (idxType idx = 0; sys->getCode(&code, idx) >= 0;
+       idx += sys->getCodeLen(code.code.op))
   {
     switch (code.code.op)
     {
@@ -1334,6 +1335,7 @@ void parseStat(int codeSize, int strSize)
     if (labels[i][0])
       maxLblNum++;
 
+  // clang-format off
   printf(BASIC_OUT_EOL);
   printf("+-----------------------------------------+" BASIC_OUT_EOL);
   printf("| Code   %5.1f%% - %4d/%4d bytes         |"  BASIC_OUT_EOL, (100.0f * codeSize ) / CODE_MEM,    codeSize,  CODE_MEM);
@@ -1342,5 +1344,6 @@ void parseStat(int codeSize, int strSize)
   printf("| Label  %5.1f%% - %4d/%4d labels        |"  BASIC_OUT_EOL, (100.0f * maxLblNum) / MAX_LABELS,  maxLblNum, MAX_LABELS);
   printf("| Str    %5.1f%% - %4d/%4d bytes         |"  BASIC_OUT_EOL, (100.0f * strSize)   / STRING_MEM,  strSize,   STRING_MEM);
   printf("+-----------------------------------------+" BASIC_OUT_EOL);
-#endif // STAT
+  // clang-format on
+#endif
 }
