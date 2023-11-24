@@ -791,14 +791,18 @@ static int parseDim()
     readChars(end - s, true);
     ENSURE(chrcon(')'), ERR_BRACKETS_MISS);
   }
-  ENSURE(chrcon('\n'), ERR_NEWLINE);
-
   CHECK(idx = addVar(name, len, level));
   varIndex[idx] = sp;
   varDim[idx]   = dim;
-  for (int i = 1; i < dim; i++)
+  if (dim > 0)         // No assignment allowed for array
+    for (int i = 0; i < dim; i++)
+      CHECK(addInt(0));
+  else if (chrcon('=')) // Dim with assignment
+    CHECK(parseExpr(0));
+  else                  // No assignment -> default = 0
     CHECK(addInt(0));
-  return addInt(0);
+  ENSURE(chrcon('\n'), ERR_NEWLINE);
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
