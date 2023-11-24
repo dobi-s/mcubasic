@@ -9,6 +9,7 @@
     "basic_exec.h": "c",
     "basic_optimizer.h": "c",
     "basic_parser.h": "c",
-    "basic_config.h": "c"
+    "basic_config.h": "c",
+    "basic.h": "c"
   }
 }

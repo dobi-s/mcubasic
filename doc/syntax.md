@@ -73,7 +73,7 @@ Loop
 ## Dim
 The `Dim` statement declares a variable or array.
 
-`Dim <var>`
+`Dim <var> [= <expr>]`
 
 `Dim <array>(<dimension>)`
 
@@ -82,19 +82,24 @@ The `Dim` statement declares a variable or array.
 | < var > | Variable name |
 | < array > | Array name |
 | < dim > | Dimension of array |
+| < expr > | Expression |
 
-Arrays must be declared with `Dim`, whereas variables are automatically declared on their first assignment. However, declaring variables can be useful for explicit scoping or shadowing.
+Arrays must be declared with `Dim`. Variables can be automatically declared on their first assignment (see `Option Explicit`). However, declaring variables can be useful for explicit scoping or shadowing.
+
+When `Option Explicit` is set, variables must be declared with `Dim`. This way spelling errors in variable names can be detected.
+
+When no expression is assigned as an initial value, the variable is initialized with 0. Arrays are always initialized with all elements 0.
 
 **Main differences to QBasic / Visual Basic**
 * No datatype for variables
-* No initial value (always 0)
 * No variable lists (only one variable per `Dim` command is allowed)
 * Lower bound of array dimensions can't be set (always 0)
 
 **Example**
 ```basic
 Dim abc(8)    ' Array of 8 variables: abc(0) .. abc(7)
-Dim xyz       ' Variable
+Dim xyz       ' Variable (initialized with 0)
+Dim a1 = 1+2  ' Variable with initial value
 ```
 
 
@@ -167,6 +172,35 @@ a = a + 1       ' Assignment without Let
 Print a         ' Output: "4"
 ```
 
+## Option
+Options will not change the behaviour the program, they set options for the compiler.
+
+Options can be changed during source code, so it is possible to turn on an option for parts of the code only.
+
+### Option Explicit
+Defines, whether variables must be declared with `Dim` (`Option Explicit On`) or variables are also created at assignments (`Option Explicit Off`). The only exceptions are loop variables of a `For`..`Next` loop, which can always be created in the header of a `For`..`Next` loop.
+
+`Option Explicit [{On|Off}]`
+
+By default, option explicit is off. If `Option Explicit` is used without `On` or `Off`, it is turned on.
+It is good practice to turn on `Option Explicit` in order to detect misspelled variable names.
+
+**Main differences to Visual Basic**
+(`Option Explicit` is not part of QBasic)
+* (none)
+
+**Example**
+```basic
+a = 1             ' Variable "a" is created by assignment
+
+Option Explicit   ' Below here, variables must be declared
+Dim var1
+var_1 = a + 1     ' Error, "var_1" can't be created by assignment
+                  ' If "var1" should be "var_1", the error wouldn't
+                  ' be detected without "Option Explicit"
+```
+
+
 ## Print
 Output data on `stdout`
 
@@ -205,7 +239,7 @@ There are 2 ways of comments: the statement `Rem` or the single quote (`'`).
 `Rem` is normal statement, so the same rules as for all other statements apply. The single quote comment can follow any code and is considered as end-of-line.
 
 ```basic
-Rem A comment with Rem 
+Rem A comment with Rem
 Print 1+2   ' Comment in same line as another statement
 Rem         ' Comment in comment ;-)
 ```
@@ -244,7 +278,7 @@ If <cond> Then
   <statements>]
 End If
 ```
-  
+
 | Expression | Description |
 | --- | --- |
 | < cond > | Condition |
@@ -258,7 +292,7 @@ The condition can by any numeric expression. It is considered false when it eval
 **Example**
 ```basic
 a = 1
-If a < 0 Then 
+If a < 0 Then
   Print "a is negative"
 Else
   If a = 0 Then
