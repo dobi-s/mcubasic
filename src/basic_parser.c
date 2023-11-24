@@ -201,6 +201,7 @@ static bool isKeyword(const char* str, int len)
     { "ELSEIF", 6 },
     { "END",    3 },
     { "EXIT",   4 },
+    { "FALSE",  5 },
     { "FOR",    3 },
     { "GOTO",   4 },
     { "IF",     2 },
@@ -218,6 +219,7 @@ static bool isKeyword(const char* str, int len)
     { "SUB",    3 },
     { "THEN",   4 },
     { "TO",     2 },
+    { "TRUE",   4 },
     { "UNTIL",  5 },
     { "WHILE",  5 },
   };
@@ -650,6 +652,12 @@ static int parseVal(int level)
   // Empty
   if (*s == '\n')
     return ERR_EXPR_MISSING;
+
+  // Constants
+  if (keycon("TRUE"))
+    return addInt(-1);
+  if (keycon("FALSE"))
+    return addInt(0);
 
   // String
   if (*s == '"')
