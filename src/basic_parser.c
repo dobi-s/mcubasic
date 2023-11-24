@@ -209,6 +209,7 @@ static bool isKeyword(const char* str, int len)
     { "MOD",    3 },
     { "NEXT",   4 },
     { "NOT",    3 },
+    { "OPTION", 6 },
     { "OR",     2 },
     { "PRINT",  5 },
     { "REM",    3 },
