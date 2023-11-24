@@ -1,3 +1,5 @@
+Option Explicit
+
 Print "Hello world!"
 
 For a = 0 To 5

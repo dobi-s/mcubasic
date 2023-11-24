@@ -100,6 +100,7 @@ static idxType subArgc[MAX_SUB_NUM];
 #if STAT
 static idxType maxVarNum;
 #endif
+static bool    optionExplicit = false;
 
 static char    exitLabel[2]   = "!";
 static idxType spAtBeginOfDo  = -1;
@@ -357,10 +358,10 @@ static int addVar(const char* name, int len, int level)
 }
 
 //-----------------------------------------------------------------------------
-static int getOrAddVar(const char* name, int len)
+static int getOrAddVar(const char* name, int len, bool allowAdd)
 {
   int idx = getVar(name, len);
-  if (idx < 0)
+  if (idx < 0 && allowAdd)
   {
     CHECK(idx = addVar(name, len, level));
     varIndex[idx] = sp;
@@ -827,7 +828,7 @@ static int parseAssign(const char* name, int len)
 {
   bool    reg = (name[0] == '$');
   idxType idx;
-  CHECK(idx = reg ? regIndex(name, len) : getOrAddVar(name, len));
+  CHECK(idx = reg ? regIndex(name, len) : getOrAddVar(name, len, !optionExplicit));
   ENSURE(reg || varDim[idx] == 0, ERR_ARRAY);
   CHECK(parseExpr(0));
   ENSURE(chrcon('\n'), ERR_NEWLINE);
@@ -1039,7 +1040,7 @@ static int parseFor()
   level++;
   ENSURE(*s != '$', ERR_VAR_NAME);
   CHECK(len = namecon(&name));
-  varIdx = getOrAddVar(name, len);
+  varIdx = getOrAddVar(name, len, true);
   varGet = varLevel[varIdx] ? CMD_GET_LOCAL : CMD_GET_GLOBAL;
   varSet = varLevel[varIdx] ? CMD_LET_LOCAL : CMD_LET_GLOBAL;
   varIdx = varIndex[varIdx];
@@ -1154,6 +1155,23 @@ static int parseEnd()
 }
 
 //-----------------------------------------------------------------------------
+static int parseOption()
+{
+  if (keycon("EXPLICIT"))
+  {
+    if (keycon("OFF"))
+      optionExplicit = false;
+    else if (keycon("ON"))
+      optionExplicit = true;
+    else
+      optionExplicit = true;
+    ENSURE(chrcon('\n'), ERR_NEWLINE);
+    return 0;
+  }
+  return ERR_EXPR_MISSING;
+}
+
+//-----------------------------------------------------------------------------
 static int parseLabel(const char* name, int len)
 {
   CHECK(lblIndex(name, len, sys->getCodeNextIndex()));
@@ -1193,6 +1211,8 @@ static int parseStmt(void)
     return parseSub();
   if (keycon("END"))
     return parseEnd();
+  if (keycon("OPTION"))
+    return parseOption();
   if (keycon("LET"))
   {
     CHECK(len = namecon(&name));
@@ -1266,6 +1286,7 @@ int parseAll(const sSys* system, int* errline, int* errcol)
   spAtBeginOfFor = -1;
   exitDo         = -1;
   exitFor        = -1;
+  optionExplicit = false;
 #if STAT
   maxVarNum = 0;
 #endif
