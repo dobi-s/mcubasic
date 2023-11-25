@@ -81,8 +81,8 @@ an array
 int offset = args[1].param;           // Offset of 1st array element in mem
 int dim    = args[1].param2;          // Dimension of array
 
-if (dim < 2)
-  return ERR_EXEC_OUT_BOUND;          // Would access out of array
+if (dim < 2)                          // Check array bounds
+  return ERR_EXEC_OUT_BOUND;
 mem[offset+1].op     = VAL_INTERGER;  // Change 2nd array element
 mem[offset+1].iValue = 123;           // to 123 (integer)
 ```

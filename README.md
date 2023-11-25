@@ -13,6 +13,7 @@ More information on
     * [`End`](doc/syntax.md#end)
     * [`GoTo`](doc/syntax.md#goto)
     * [`Let`](doc/syntax.md#let)
+    * [`Option`](doc/syntax.md#option)
     * [`Print`](doc/syntax.md#print)
     * [`Rem`](doc/syntax.md#remarks)
   * [Control structures](doc/syntax.md#control-structures)
@@ -23,7 +24,12 @@ More information on
   * [Sub functions](doc/syntax.md#sub-functions)
   * [Operators](doc/syntax.md#operators)
     * [Operator precedance](doc/syntax.md#operator-precedance)
-* Integration (integration.md)
-  * TBD
-* Technical details](doc/tech_details.md)
+* [Integration](doc/integration.md)
+  * [main.c](doc/integration.md#mainc)
+    * [Setup](doc/integration.md#setup)
+  * [basic.c](doc/integration.md#basicc)
+    * [Registers](doc/integration.md#registers)
+    * [User defined functions](doc/integration.md#user-defined-functions)
+    * [System struct](doc/integration.md#system-struct)
+* [Technical details](doc/tech_details.md)
   * TBD
