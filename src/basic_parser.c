@@ -850,9 +850,9 @@ static int parseAssign(const char* name, int len)
 //-----------------------------------------------------------------------------
 static int parseArrayAssign(const char* name, int len)
 {
-  idxType idx;
+  idxType idx = getVar(name, len);
   ENSURE(name[0] != '$', ERR_NOT_IMPL);  // TODO: Implement array registers
-  CHECK(idx = getVar(name, len));
+  ENSURE(idx >= 0, ERR_ARRAY_NOT_FOUND);
   ENSURE(varDim[idx] != 0, ERR_NOT_ARRAY);
   CHECK(parseExpr(0));
   ENSURE(chrcon(')'), ERR_BRACKETS_MISS);

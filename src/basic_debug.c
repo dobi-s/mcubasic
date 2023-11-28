@@ -184,6 +184,7 @@ const char* errmsg(int err)
     case ERR_DIM_INV:         return "Invalid array dimension";
     case ERR_NOT_ARRAY:       return "Variable is not an array";
     case ERR_ARRAY:           return "Variable is an array";
+    case ERR_ARRAY_NOT_FOUND: return "Array not found (Sub called with brackets?)";
     case ERR_NOT_IMPL:        return "Not implemented yet";
     default:                  return "(unknown)";
   }

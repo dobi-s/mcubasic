@@ -151,7 +151,8 @@ static int returnSub(idxType cnt)
 //-----------------------------------------------------------------------------
 static int svc(sSys* sys, idxType idx)
 {
-  ENSURE(idx >= 0 && idx < ARRAY_SIZE(sys->svcs), ERR_EXEC_SVC_INV);
+  ENSURE(idx >= 0 && idx < ARRAY_SIZE(sys->svcs) && sys->svcs[idx].func,
+         ERR_EXEC_SVC_INV);
   ENSURE(sp > sys->svcs[idx].argc, ERR_EXEC_STACK_UF);
   sp -= sys->svcs[idx].argc;
   return sys->svcs[idx].func(&stack[sp - 1], &stack[0]);
